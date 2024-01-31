@@ -2,31 +2,20 @@ package com.eatthepath.noise;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
-import javax.crypto.*;
-import javax.crypto.spec.SecretKeySpec;
+import javax.crypto.AEADBadTagException;
+import javax.crypto.ShortBufferException;
 import java.nio.ByteBuffer;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
 import java.security.Key;
-import java.security.spec.AlgorithmParameterSpec;
 
 @NotThreadSafe
-public abstract class CipherState {
+public class CipherState {
 
   private Key key;
   private long nonce;
 
-  private final Cipher cipher;
+  private final NoiseCipher cipher;
 
-  private static final long MAX_NONCE = 0xffffffffffffffffL;
-
-  @FunctionalInterface
-  private interface CipherFinalizer<T> {
-
-    T doFinal() throws IllegalBlockSizeException, BadPaddingException, ShortBufferException;
-  }
-
-  public CipherState(final Cipher cipher) {
+  public CipherState(final NoiseCipher cipher) {
     this.cipher = cipher;
   }
 
@@ -62,13 +51,7 @@ public abstract class CipherState {
       throws AEADBadTagException, ShortBufferException {
 
     if (hasKey()) {
-      initCipher(Cipher.DECRYPT_MODE, nonce);
-
-      if (associatedData != null) {
-        cipher.updateAAD(associatedData);
-      }
-
-      final int plaintextLength = finishDecryption(() -> cipher.doFinal(ciphertext, plaintext));
+      final int plaintextLength = cipher.decrypt(key, nonce, associatedData, ciphertext, plaintext);
       nonce += 1;
 
       return plaintextLength;
@@ -110,14 +93,15 @@ public abstract class CipherState {
                      final int plaintextOffset) throws AEADBadTagException, ShortBufferException {
 
     if (hasKey()) {
-      initCipher(Cipher.DECRYPT_MODE, nonce);
-
-      if (associatedData != null) {
-        cipher.updateAAD(associatedData, aadOffset, aadLength);
-      }
-
-      final int plaintextLength = finishDecryption(() ->
-          cipher.doFinal(ciphertext, ciphertextOffset, ciphertextLength, plaintext, plaintextOffset));
+      final int plaintextLength = cipher.decrypt(key,
+          nonce,
+          associatedData,
+          aadOffset,
+          aadLength,
+          ciphertext,
+          ciphertextOffset,
+          ciphertextLength,
+          plaintext,plaintextOffset);
 
       nonce += 1;
 
@@ -143,13 +127,7 @@ public abstract class CipherState {
 
   public int encrypt(@Nullable final ByteBuffer associatedData, final ByteBuffer plaintext, final ByteBuffer ciphertext) throws ShortBufferException {
     if (hasKey()) {
-      initCipher(Cipher.ENCRYPT_MODE, nonce);
-
-      if (associatedData != null) {
-        cipher.updateAAD(associatedData);
-      }
-
-      final int ciphertextLength = finishEncryption(() -> cipher.doFinal(plaintext, ciphertext));
+      final int ciphertextLength = cipher.encrypt(key, nonce, associatedData, plaintext, ciphertext);
       nonce += 1;
 
       return ciphertextLength;
@@ -191,14 +169,16 @@ public abstract class CipherState {
                        final int ciphertextOffset) throws ShortBufferException {
 
     if (hasKey()) {
-      initCipher(Cipher.ENCRYPT_MODE, nonce);
-
-      if (associatedData != null) {
-        cipher.updateAAD(associatedData, aadOffset, aadLength);
-      }
-
-      final int ciphertextLength = finishEncryption(() ->
-          cipher.doFinal(plaintext, plaintextOffset, plaintextLength, ciphertext, ciphertextOffset));
+      final int ciphertextLength = cipher.encrypt(key,
+          nonce,
+          associatedData,
+          aadOffset,
+          aadLength,
+          plaintext,
+          plaintextOffset,
+          plaintextLength,
+          ciphertext,
+          ciphertextOffset);
 
       nonce += 1;
 
@@ -208,75 +188,6 @@ public abstract class CipherState {
       return plaintextLength;
     }
   }
-
-  public void rekey() {
-    if (!hasKey()) {
-      throw new IllegalStateException("No key set");
-    }
-
-    key = rekey(key);
-  }
-
-  protected Key rekey(final Key key) {
-    initCipher(Cipher.ENCRYPT_MODE, MAX_NONCE, key);
-
-    try {
-      return new SecretKeySpec(finishEncryption(() -> cipher.doFinal(new byte[32])), "RAW");
-    } catch (final ShortBufferException e) {
-      // This should never happen when we're returning a new byte array
-      throw new AssertionError(e);
-    }
-  }
-
-  private void initCipher(final int mode, final long nonce) {
-    initCipher(mode, nonce, this.key);
-  }
-
-  private void initCipher(final int mode, final long nonce, final Key key) {
-    final AlgorithmParameterSpec algorithmParameterSpec = getAlgorithmParameters(nonce);
-
-    try {
-      cipher.init(mode, key, algorithmParameterSpec);
-    } catch (final InvalidAlgorithmParameterException e) {
-      // This should never happen for a known algorithm with a known "shape" of parameters
-      throw new AssertionError(e);
-    } catch (final InvalidKeyException e) {
-      // This should never happen for a key we control
-      throw new AssertionError(e);
-    }
-  }
-
-  private static <T> T finishDecryption(final CipherFinalizer<T> finalizer)
-      throws AEADBadTagException, ShortBufferException {
-
-    try {
-      return finalizer.doFinal();
-    } catch (final IllegalBlockSizeException e) {
-      // We're not using a block cipher
-      throw new AssertionError(e);
-    } catch (final BadPaddingException e) {
-      if (e instanceof AEADBadTagException aeadBadTagException) {
-        throw aeadBadTagException;
-      }
-
-      // We're also not using padding
-      throw new AssertionError(e);
-    }
-  }
-
-  private static <T> T finishEncryption(final CipherFinalizer<T> finalizer) throws ShortBufferException {
-    try {
-      return finalizer.doFinal();
-    } catch (final IllegalBlockSizeException e) {
-      // We're not using a block cipher
-      throw new AssertionError(e);
-    } catch (final BadPaddingException e) {
-      // We're also not using padding
-      throw new AssertionError(e);
-    }
-  }
-
-  protected abstract AlgorithmParameterSpec getAlgorithmParameters(final long nonce);
 
   public int getCiphertextLength(final int plaintextLength) {
     return hasKey() ? plaintextLength + 16 : plaintextLength;
@@ -292,5 +203,9 @@ public abstract class CipherState {
     } else {
       return ciphertextLength;
     }
+  }
+
+  public void rekey() {
+    key = cipher.rekey(key);
   }
 }
