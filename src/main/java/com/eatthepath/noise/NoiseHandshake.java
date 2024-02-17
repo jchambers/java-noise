@@ -2,10 +2,12 @@ package com.eatthepath.noise;
 
 import javax.annotation.Nullable;
 import javax.crypto.AEADBadTagException;
-import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
-import java.security.*;
+import java.security.DigestException;
+import java.security.KeyPair;
+import java.security.MessageDigest;
+import java.security.PublicKey;
 
 public class NoiseHandshake {
 
@@ -16,8 +18,7 @@ public class NoiseHandshake {
   private int currentMessagePattern = 0;
 
   private final CipherState cipherState;
-  private final MessageDigest messageDigest;
-  private final Mac mac;
+  private final NoiseHash noiseHash;
   private final NoiseKeyAgreement keyAgreement;
 
   private final byte[] chainingKey;
@@ -44,8 +45,7 @@ public class NoiseHandshake {
                         final HandshakePattern handshakePattern,
                         final Role role,
                         final CipherState cipherState,
-                        final MessageDigest messageDigest,
-                        final Mac mac,
+                        final NoiseHash noiseHash,
                         final NoiseKeyAgreement keyAgreement,
                         @Nullable final byte[] prologue,
                         @Nullable final KeyPair localStaticKeyPair,
@@ -58,13 +58,14 @@ public class NoiseHandshake {
     this.role = role;
 
     this.cipherState = cipherState;
-    this.messageDigest = messageDigest;
-    this.mac = mac;
+    this.noiseHash = noiseHash;
     this.keyAgreement = keyAgreement;
 
-    hash = new byte[messageDigest.getDigestLength()];
+    hash = new byte[noiseHash.getHashLength()];
 
     final byte[] protocolNameBytes = noiseProtocolName.getBytes(StandardCharsets.UTF_8);
+
+    final MessageDigest messageDigest = noiseHash.getMessageDigest();
 
     if (protocolNameBytes.length <= messageDigest.getDigestLength()) {
       System.arraycopy(protocolNameBytes, 0, hash, 0, protocolNameBytes.length);
@@ -82,37 +83,8 @@ public class NoiseHandshake {
     chainingKey = hash.clone();
   }
 
-  private byte[][] hkdf(final byte[] inputKeyMaterial, final int outputKeys) {
-    if (outputKeys < 2 || outputKeys > 3) {
-      throw new IllegalArgumentException("Illegal output key count");
-    }
-
-    final byte[][] derivedKeys = new byte[messageDigest.getDigestLength()][outputKeys];
-
-    try {
-      mac.init(new SecretKeySpec(chainingKey, "RAW"));
-      final Key tempKey = new SecretKeySpec(mac.doFinal(inputKeyMaterial), "RAW");
-
-      for (byte k = 0; k < outputKeys; k++) {
-        mac.init(tempKey);
-
-        if (k > 0) {
-          mac.update(derivedKeys[k - 1]);
-        }
-
-        mac.update((byte) (k + 1));
-        derivedKeys[k] = mac.doFinal();
-      }
-
-      return derivedKeys;
-    } catch (final InvalidKeyException e) {
-      // This should never happen for keys we derive/control
-      throw new AssertionError(e);
-    }
-  }
-
   private void mixKey(final byte[] inputKeyMaterial) {
-    final byte[][] derivedKeys = hkdf(inputKeyMaterial, 2);
+    final byte[][] derivedKeys = noiseHash.deriveKeys(chainingKey, inputKeyMaterial, 2);
 
     System.arraycopy(derivedKeys[0], 0, chainingKey, 0, derivedKeys[0].length);
 
@@ -121,9 +93,12 @@ public class NoiseHandshake {
   }
 
   private void mixHash(final byte[] bytes) {
+    final MessageDigest messageDigest = noiseHash.getMessageDigest();
+
     try {
       messageDigest.reset();
       messageDigest.update(hash);
+      messageDigest.update(bytes);
       messageDigest.digest(hash, 0, hash.length);
     } catch (final DigestException e) {
       // This should never happen
