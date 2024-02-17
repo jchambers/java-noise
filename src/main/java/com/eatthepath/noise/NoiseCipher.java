@@ -9,6 +9,8 @@ import java.security.Key;
 
 public interface NoiseCipher {
 
+  String getName();
+
   default ByteBuffer encrypt(final Key key,
                              final long nonce,
                              @Nullable final ByteBuffer associatedData,

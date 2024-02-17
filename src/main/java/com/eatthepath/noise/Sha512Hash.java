@@ -16,6 +16,11 @@ public class Sha512Hash implements NoiseHash {
   }
 
   @Override
+  public String getName() {
+    return "SHA512";
+  }
+
+  @Override
   public MessageDigest getMessageDigest() {
     try {
       return MessageDigest.getInstance(MESSAGE_DIGEST_ALGORITHM);

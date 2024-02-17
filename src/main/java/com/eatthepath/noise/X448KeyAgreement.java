@@ -16,6 +16,11 @@ class X448KeyAgreement extends AbstractXECKeyAgreement {
   }
 
   @Override
+  public String getName() {
+    return "448";
+  }
+
+  @Override
   public int getPublicKeyLength() {
     return 56;
   }

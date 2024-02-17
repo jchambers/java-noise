@@ -10,7 +10,7 @@ class NoiseHandshakeTest {
 
   @Test
   void getOutboundMessageLength() {
-    final HandshakePattern handshakePattern = handshakePatternFromString("""
+    final HandshakePattern handshakePattern = handshakePatternFromString("XX", """
         -> e
         <- e, ee, s, es
         -> s, se
@@ -30,7 +30,7 @@ class NoiseHandshakeTest {
 
   @Test
   void getPayloadLength() {
-    final HandshakePattern handshakePattern = handshakePatternFromString("""
+    final HandshakePattern handshakePattern = handshakePatternFromString("XX", """
         -> e
         <- e, ee, s, es
         -> s, se
@@ -51,7 +51,7 @@ class NoiseHandshakeTest {
         () -> NoiseHandshake.getPayloadLength(handshakePattern, 0, publicKeyLength, 55));
   }
 
-  private HandshakePattern handshakePatternFromString(final String patternString) {
+  private HandshakePattern handshakePatternFromString(final String name, final String patternString) {
     final HandshakePattern.MessagePattern[] messagePatterns = patternString.lines()
         .map(String::trim)
         .map(line -> {
@@ -76,6 +76,6 @@ class NoiseHandshakeTest {
         .toList()
         .toArray(new HandshakePattern.MessagePattern[0]);
 
-    return new HandshakePattern(new HandshakePattern.MessagePattern[0], messagePatterns);
+    return new HandshakePattern(name, new HandshakePattern.MessagePattern[0], messagePatterns);
   }
 }

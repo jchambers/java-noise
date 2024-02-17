@@ -8,6 +8,8 @@ import java.security.MessageDigest;
 
 public interface NoiseHash {
 
+  String getName();
+
   MessageDigest getMessageDigest();
 
   Mac getHmac();

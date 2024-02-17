@@ -1,6 +1,6 @@
 package com.eatthepath.noise;
 
-public record HandshakePattern(MessagePattern[] preMessagePatterns, MessagePattern[] handshakeMessagePatterns) {
+public record HandshakePattern(String name, MessagePattern[] preMessagePatterns, MessagePattern[] handshakeMessagePatterns) {
 
   public record MessagePattern(NoiseHandshake.Role sender, Token[] tokens) {
   }

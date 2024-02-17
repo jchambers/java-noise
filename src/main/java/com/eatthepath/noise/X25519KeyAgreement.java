@@ -15,6 +15,11 @@ class X25519KeyAgreement extends AbstractXECKeyAgreement {
   }
 
   @Override
+  public String getName() {
+    return "25519";
+  }
+
+  @Override
   public int getPublicKeyLength() {
     return 32;
   }

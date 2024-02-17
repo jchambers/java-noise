@@ -30,4 +30,9 @@ class AesGcmCipher extends AbstractNoiseCipher {
     nonceBuffer.putLong(4, nonce);
     return new IvParameterSpec(nonceBuffer.array());
   }
+
+  @Override
+  public String getName() {
+    return "AESGCM";
+  }
 }

@@ -8,6 +8,8 @@ import java.security.spec.InvalidKeySpecException;
 
 public interface NoiseKeyAgreement {
 
+  String getName();
+
   KeyPair generateKeyPair();
 
   byte[] generateSecret(PrivateKey privateKey, PublicKey publicKey) throws InvalidKeyException;

@@ -23,4 +23,9 @@ class ChaCha20Poly1305Cipher extends AbstractNoiseCipher {
     nonceBuffer.putLong(4, nonce);
     return new IvParameterSpec(nonceBuffer.array());
   }
+
+  @Override
+  public String getName() {
+    return "ChaChaPoly";
+  }
 }

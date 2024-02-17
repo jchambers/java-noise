@@ -41,10 +41,9 @@ public class NoiseHandshake {
     RESPONDER
   }
 
-  public NoiseHandshake(final String noiseProtocolName,
-                        final HandshakePattern handshakePattern,
+  public NoiseHandshake(final HandshakePattern handshakePattern,
                         final Role role,
-                        final CipherState cipherState,
+                        final NoiseCipher noiseCipher,
                         final NoiseHash noiseHash,
                         final NoiseKeyAgreement keyAgreement,
                         @Nullable final byte[] prologue,
@@ -53,13 +52,18 @@ public class NoiseHandshake {
                         @Nullable final PublicKey remoteStaticPublicKey,
                         @Nullable final PublicKey remoteEphemeralPublicKey) {
 
-    this.noiseProtocolName = noiseProtocolName;
     this.handshakePattern = handshakePattern;
     this.role = role;
 
-    this.cipherState = cipherState;
+    this.cipherState = new CipherState(noiseCipher);
     this.noiseHash = noiseHash;
     this.keyAgreement = keyAgreement;
+
+    this.noiseProtocolName = "Noise_" +
+        handshakePattern.name() + "_" +
+        keyAgreement.getName() + "_" +
+        noiseCipher.getName() + "_" +
+        noiseHash.getName();
 
     hash = new byte[noiseHash.getHashLength()];
 
@@ -81,6 +85,10 @@ public class NoiseHandshake {
     }
 
     chainingKey = hash.clone();
+  }
+
+  public String getNoiseProtocolName() {
+    return noiseProtocolName;
   }
 
   private void mixKey(final byte[] inputKeyMaterial) {

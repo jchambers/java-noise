@@ -7,6 +7,11 @@ import java.security.NoSuchAlgorithmException;
 public class Sha256Hash implements NoiseHash {
 
   @Override
+  public String getName() {
+    return "SHA256";
+  }
+
+  @Override
   public MessageDigest getMessageDigest() {
     try {
       return MessageDigest.getInstance("SHA-256");
