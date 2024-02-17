@@ -9,12 +9,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class NoiseHandshakeTest {
 
   @Test
-  void getOutboundMessageLength() {
-    final HandshakePattern handshakePattern = handshakePatternFromString("XX", """
-        -> e
-        <- e, ee, s, es
-        -> s, se
-        """);
+  void getOutboundMessageLength() throws NoSuchPatternException {
+    final HandshakePattern handshakePattern = HandshakePattern.getInstance("XX");
 
     final int publicKeyLength = 56;
 
@@ -29,12 +25,8 @@ class NoiseHandshakeTest {
   }
 
   @Test
-  void getPayloadLength() {
-    final HandshakePattern handshakePattern = handshakePatternFromString("XX", """
-        -> e
-        <- e, ee, s, es
-        -> s, se
-        """);
+  void getPayloadLength() throws NoSuchPatternException {
+    final HandshakePattern handshakePattern = HandshakePattern.getInstance("XX");
 
     final int publicKeyLength = 56;
 
@@ -49,33 +41,5 @@ class NoiseHandshakeTest {
 
     assertThrows(IllegalArgumentException.class,
         () -> NoiseHandshake.getPayloadLength(handshakePattern, 0, publicKeyLength, 55));
-  }
-
-  private HandshakePattern handshakePatternFromString(final String name, final String patternString) {
-    final HandshakePattern.MessagePattern[] messagePatterns = patternString.lines()
-        .map(String::trim)
-        .map(line -> {
-          final NoiseHandshake.Role sender;
-
-          if (line.startsWith("-> ")) {
-            sender = NoiseHandshake.Role.INITIATOR;
-          } else if (line.startsWith("<- ")) {
-            sender = NoiseHandshake.Role.RESPONDER;
-          } else {
-            throw new IllegalArgumentException("Could not identify sender");
-          }
-
-          final HandshakePattern.Token[] tokens = Arrays.stream(line.substring(3).split(","))
-              .map(String::trim)
-              .map(HandshakePattern.Token::fromString)
-              .toList()
-              .toArray(new HandshakePattern.Token[0]);
-
-          return new HandshakePattern.MessagePattern(sender, tokens);
-        })
-        .toList()
-        .toArray(new HandshakePattern.MessagePattern[0]);
-
-    return new HandshakePattern(name, new HandshakePattern.MessagePattern[0], messagePatterns);
   }
 }
