@@ -46,4 +46,18 @@ class NamedProtocolHandshakeBuilderTest {
 
     assertEquals(noiseProtocolName, builder.build().getNoiseProtocolName());
   }
+
+  @Test
+  void setUnnecessaryKeys() throws NoSuchAlgorithmException, NoSuchPatternException {
+    final String noiseProtocolName = "Noise_NN_25519_AESGCM_SHA256";
+
+    final NamedProtocolHandshakeBuilder builder =
+        new NamedProtocolHandshakeBuilder(noiseProtocolName, NoiseHandshake.Role.INITIATOR);
+
+    assertThrows(IllegalStateException.class,
+        () -> builder.setLocalStaticKeyPair(KeyPairGenerator.getInstance("X25519").generateKeyPair()));
+
+    assertThrows(IllegalStateException.class,
+        () -> builder.setRemoteStaticPublicKey(KeyPairGenerator.getInstance("X25519").generateKeyPair().getPublic()));
+  }
 }

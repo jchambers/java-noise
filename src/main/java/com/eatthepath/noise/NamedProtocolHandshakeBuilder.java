@@ -50,6 +50,10 @@ public class NamedProtocolHandshakeBuilder {
   }
 
   public NamedProtocolHandshakeBuilder setLocalStaticKeyPair(@Nullable final KeyPair localStaticKeyPair) {
+    if (!handshakePattern.requiresLocalStaticKeyPair(role)) {
+      throw new IllegalStateException(handshakePattern.name() + " handshake pattern does not allow local static keys for " + role + " role");
+    }
+
     this.localStaticKeyPair = localStaticKeyPair;
     return this;
   }
@@ -60,6 +64,10 @@ public class NamedProtocolHandshakeBuilder {
   }
 
   public NamedProtocolHandshakeBuilder setRemoteStaticPublicKey(@Nullable final PublicKey remoteStaticPublicKey) {
+    if (!handshakePattern.requiresRemoteStaticPublicKey(role)) {
+      throw new IllegalStateException(handshakePattern.name() + " handshake pattern does not allow remote static key for " + role + " role");
+    }
+
     this.remoteStaticPublicKey = remoteStaticPublicKey;
     return this;
   }
