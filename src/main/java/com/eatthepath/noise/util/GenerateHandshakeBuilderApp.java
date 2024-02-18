@@ -10,7 +10,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 class GenerateHandshakeBuilderApp {
 
@@ -77,8 +76,8 @@ class GenerateHandshakeBuilderApp {
 
     for (final HandshakePattern handshakePattern : loadAllPatterns()) {
       for (final NoiseHandshake.Role role : NoiseHandshake.Role.values()) {
-        final boolean needsLocalStaticKeyPair = roleNeedsLocalStaticKeyPair(handshakePattern, role);
-        final boolean needsRemoteStaticPublicKey = roleNeedsRemoteStaticPublicKey(handshakePattern, role);
+        final boolean needsLocalStaticKeyPair = handshakePattern.requiresLocalStaticKeyPair(role);
+        final boolean needsRemoteStaticPublicKey = handshakePattern.requiresRemoteStaticPublicKey(role);
 
         final String template;
 
@@ -135,38 +134,6 @@ class GenerateHandshakeBuilderApp {
     }
 
     return renderedTemplate;
-  }
-
-  static boolean roleNeedsLocalStaticKeyPair(final HandshakePattern handshakePattern, final NoiseHandshake.Role role) {
-    // The given role needs a local static key pair if any pre-handshake message or handshake message involves that role
-    // sending a static key to the other party
-    return Stream.concat(Arrays.stream(handshakePattern.preMessagePatterns()), Arrays.stream(handshakePattern.handshakeMessagePatterns()))
-        .filter(messagePattern -> messagePattern.sender() == role)
-        .anyMatch(messagePattern -> {
-          for (final HandshakePattern.Token token : messagePattern.tokens()) {
-            if (token == HandshakePattern.Token.S) {
-              return true;
-            }
-          }
-
-          return false;
-        });
-  }
-
-  static boolean roleNeedsRemoteStaticPublicKey(final HandshakePattern handshakePattern, final NoiseHandshake.Role role) {
-    // The given role needs a remote static key pair if the handshake pattern involves that role receiving a static key
-    // from the other party in a pre-handshake message
-    return Arrays.stream(handshakePattern.preMessagePatterns())
-        .filter(messagePattern -> messagePattern.sender() != role)
-        .anyMatch(messagePattern -> {
-          for (final HandshakePattern.Token token : messagePattern.tokens()) {
-            if (token == HandshakePattern.Token.S) {
-              return true;
-            }
-          }
-
-          return false;
-        });
   }
 
   private static List<HandshakePattern> loadAllPatterns() throws IOException {

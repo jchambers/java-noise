@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public record HandshakePattern(String name, MessagePattern[] preMessagePatterns, MessagePattern[] handshakeMessagePatterns) {
 
@@ -157,6 +158,38 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
         .toArray(new HandshakePattern.Token[0]);
 
     return new HandshakePattern.MessagePattern(sender, tokens);
+  }
+
+  public boolean requiresLocalStaticKeyPair(final NoiseHandshake.Role role) {
+    // The given role needs a local static key pair if any pre-handshake message or handshake message involves that role
+    // sending a static key to the other party
+    return Stream.concat(Arrays.stream(preMessagePatterns()), Arrays.stream(handshakeMessagePatterns()))
+        .filter(messagePattern -> messagePattern.sender() == role)
+        .anyMatch(messagePattern -> {
+          for (final HandshakePattern.Token token : messagePattern.tokens()) {
+            if (token == HandshakePattern.Token.S) {
+              return true;
+            }
+          }
+
+          return false;
+        });
+  }
+
+  public boolean requiresRemoteStaticPublicKey(final NoiseHandshake.Role role) {
+    // The given role needs a remote static key pair if the handshake pattern involves that role receiving a static key
+    // from the other party in a pre-handshake message
+    return Arrays.stream(preMessagePatterns())
+        .filter(messagePattern -> messagePattern.sender() != role)
+        .anyMatch(messagePattern -> {
+          for (final HandshakePattern.Token token : messagePattern.tokens()) {
+            if (token == HandshakePattern.Token.S) {
+              return true;
+            }
+          }
+
+          return false;
+        });
   }
 
   @Override

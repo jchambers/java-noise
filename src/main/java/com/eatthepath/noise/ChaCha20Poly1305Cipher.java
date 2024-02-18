@@ -14,8 +14,19 @@ class ChaCha20Poly1305Cipher extends AbstractNoiseCipher {
 
   private final ByteBuffer nonceBuffer = ByteBuffer.allocate(12).order(ByteOrder.LITTLE_ENDIAN);
 
-  public ChaCha20Poly1305Cipher() throws NoSuchPaddingException, NoSuchAlgorithmException {
-    super(Cipher.getInstance("ChaCha20-Poly1305"));
+  public ChaCha20Poly1305Cipher() throws NoSuchAlgorithmException {
+    super(getCipher());
+  }
+
+  private static Cipher getCipher() throws NoSuchAlgorithmException {
+    // This is mostly just a dance to accommodate the pre-Java-22 "super must be the first statement in a constructor"
+    // requirement
+    try {
+      return Cipher.getInstance("ChaCha20-Poly1305");
+    } catch (final NoSuchPaddingException e) {
+      // This should never happen since we're not specifying a padding
+      throw new AssertionError("Padding not supported, but no padding specified", e);
+    }
   }
 
   @Override
