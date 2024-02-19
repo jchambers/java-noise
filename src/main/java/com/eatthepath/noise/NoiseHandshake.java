@@ -7,6 +7,8 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
+import java.util.Arrays;
+import java.util.Comparator;
 
 public class NoiseHandshake {
 
@@ -60,14 +62,31 @@ public class NoiseHandshake {
     this.noiseHash = noiseHash;
     this.keyAgreement = keyAgreement;
 
-    // TODO Validate keys
+    if (handshakePattern.requiresLocalStaticKeyPair(role)) {
+      if (localStaticKeyPair == null) {
+        throw new IllegalArgumentException(handshakePattern.name() + " handshake pattern requires a local static key pair for " + role + " role");
+      }
+    } else {
+      if (localStaticKeyPair != null) {
+        throw new IllegalArgumentException(handshakePattern.name() + " handshake pattern does not allow a local static key pair for " + role + " role");
+      }
+    }
+
+    if (handshakePattern.requiresRemoteStaticPublicKey(role)) {
+      if (remoteStaticPublicKey == null) {
+        throw new IllegalArgumentException(handshakePattern.name() + " handshake pattern requires a remote static public key for " + role + " role");
+      }
+    } else {
+      if (remoteStaticPublicKey != null) {
+        throw new IllegalArgumentException(handshakePattern.name() + " handshake pattern does not allow a remote static public key for " + role + " role");
+      }
+    }
+
+    // TODO Validate key compatibility
     this.localStaticKeyPair = localStaticKeyPair;
     this.localEphemeralKeyPair = localEphemeralKeyPair;
     this.remoteStaticPublicKey = remoteStaticPublicKey;
     this.remoteEphemeralPublicKey = remoteEphemeralPublicKey;
-
-    // TODO Prologue
-    // TODO Process pre-messages
 
     this.noiseProtocolName = "Noise_" +
         handshakePattern.name() + "_" +
@@ -95,6 +114,56 @@ public class NoiseHandshake {
     }
 
     chainingKey = hash.clone();
+
+    if (prologue != null) {
+      mixHash(prologue, 0, prologue.length);
+    } else {
+      mixHash(EMPTY_PAYLOAD, 0, 0);
+    }
+
+    Arrays.stream(handshakePattern.preMessagePatterns())
+        // Process the initiator's keys first; "initiator" comes before "responder" in the `Role` enum, and so we don't
+        // need a specialized comparator
+        .sorted(Comparator.comparing(HandshakePattern.MessagePattern::sender))
+        .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens())
+            .map(token -> switch (token) {
+              case E -> {
+                final PublicKey ephemeralPublicKey;
+
+                if (messagePattern.sender() == role) {
+                  ephemeralPublicKey = localEphemeralKeyPair != null ? localEphemeralKeyPair.getPublic() : null;
+                } else {
+                  ephemeralPublicKey = remoteEphemeralPublicKey;
+                }
+
+                if (ephemeralPublicKey == null) {
+                  throw new IllegalStateException("Ephemeral public key for " + messagePattern.sender() + " role must not be null");
+                }
+
+                yield ephemeralPublicKey;
+              }
+              case S -> {
+                final PublicKey staticPublicKey;
+
+                if (messagePattern.sender() == role) {
+                  staticPublicKey = localStaticKeyPair != null ? localStaticKeyPair.getPublic() : null;
+                } else {
+                  staticPublicKey = remoteStaticPublicKey;
+                }
+
+                if (staticPublicKey == null) {
+                  throw new IllegalStateException("Static public key for " + messagePattern.sender() + " role must not be null");
+                }
+
+                yield staticPublicKey;
+              }
+              case EE, ES, SE, SS ->
+                  throw new IllegalArgumentException("Key-mixing tokens must not appear in pre-messages");
+            }))
+        .forEach(publicKey -> {
+          final byte[] publicKeyBytes = keyAgreement.serializePublicKey(publicKey);
+          mixHash(publicKeyBytes, 0, publicKeyBytes.length);
+        });
   }
 
   public String getNoiseProtocolName() {
