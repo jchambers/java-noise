@@ -35,14 +35,8 @@ class NoiseHandshakeTest {
   }
 
   private record TestVector(
-      String name,
-      String pattern,
-
-      @JsonProperty("dh")
-      String keyAgreement,
-
-      String cipher,
-      String hash,
+      @JsonProperty("protocol_name")
+      String protocolName,
 
       @JsonProperty("init_prologue")
       @JsonDeserialize(using = HexDeserializer.class)
@@ -129,61 +123,14 @@ class NoiseHandshakeTest {
   @ParameterizedTest
   @MethodSource
   void completeHandshake(final TestVector testVector) {
-    final HandshakePattern handshakePattern;
-
     try {
-      handshakePattern = HandshakePattern.getInstance(testVector.pattern());
+      new NamedProtocolHandshakeBuilder(testVector.protocolName(), NoiseHandshake.Role.INITIATOR)
+          .build();
+    } catch (final NoSuchAlgorithmException e) {
+      throw new TestAbortedException("Unsupported algorithm: " + testVector.protocolName(), e);
     } catch (final NoSuchPatternException e) {
-      throw new TestAbortedException("Handshake pattern not supported: " + testVector.pattern());
+      throw new TestAbortedException("Unsupported handshake pattern: " + testVector.protocolName());
     }
-
-    final DefaultProtocolNameResolver resolver = new DefaultProtocolNameResolver();
-
-    final NoiseKeyAgreement keyAgreement;
-
-    try {
-      keyAgreement = resolver.getKeyAgreement(testVector.keyAgreement());
-    } catch (final NoSuchAlgorithmException e) {
-      throw new TestAbortedException("Key agreement not supported: " + testVector.keyAgreement());
-    }
-
-    final NoiseCipher cipher;
-
-    try {
-      cipher = resolver.getCipher(testVector.cipher());
-    } catch (final NoSuchAlgorithmException e) {
-      throw new TestAbortedException("Cipher not supported: " + testVector.cipher());
-    }
-
-    final NoiseHash hash;
-
-    try {
-      hash = resolver.getHash(testVector.hash());
-    } catch (final NoSuchAlgorithmException e) {
-      throw new TestAbortedException("Hash not supported: " + testVector.hash());
-    }
-
-    new NoiseHandshake(NoiseHandshake.Role.INITIATOR,
-        handshakePattern,
-        keyAgreement,
-        cipher,
-        hash,
-        null,
-        null,
-        null,
-        null,
-        null);
-
-    new NoiseHandshake(NoiseHandshake.Role.RESPONDER,
-        handshakePattern,
-        keyAgreement,
-        cipher,
-        hash,
-        null,
-        null,
-        null,
-        null,
-        null);
   }
 
   private static Stream<Arguments> completeHandshake() throws IOException {
@@ -204,7 +151,7 @@ class NoiseHandshakeTest {
             false)
         .map(entry -> {
           if (entry instanceof TestVector testVector) {
-            return Arguments.of(Named.of(testVector.name(), testVector));
+            return Arguments.of(Named.of(testVector.protocolName(), testVector));
           } else {
             throw new RuntimeException("Unexpected object in stream: " + entry.getClass().getName());
           }
