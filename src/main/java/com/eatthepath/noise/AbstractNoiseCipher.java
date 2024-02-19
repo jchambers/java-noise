@@ -1,6 +1,7 @@
 package com.eatthepath.noise;
 
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.ThreadSafe;
 import javax.crypto.*;
 import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
@@ -8,18 +9,17 @@ import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.spec.AlgorithmParameterSpec;
 
+@ThreadSafe
 abstract class AbstractNoiseCipher implements NoiseCipher {
-
-  private final Cipher cipher;
 
   @FunctionalInterface
   private interface CipherFinalizer<T> {
     T doFinal() throws IllegalBlockSizeException, BadPaddingException, ShortBufferException;
   }
 
-  protected AbstractNoiseCipher(final Cipher cipher) {
-    this.cipher = cipher;
-  }
+  protected abstract Cipher getCipher();
+
+  protected abstract AlgorithmParameterSpec getAlgorithmParameters(final long nonce);
 
   @Override
   public int encrypt(final Key key,
@@ -28,7 +28,9 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
                      final ByteBuffer plaintext,
                      final ByteBuffer ciphertext) throws ShortBufferException {
 
-    initCipher(Cipher.ENCRYPT_MODE, key, nonce);
+    final Cipher cipher = getCipher();
+
+    initCipher(cipher, Cipher.ENCRYPT_MODE, key, nonce);
 
     if (associatedData != null) {
       cipher.updateAAD(associatedData);
@@ -49,7 +51,9 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
                      final byte[] ciphertext,
                      final int ciphertextOffset) throws ShortBufferException {
 
-    initCipher(Cipher.ENCRYPT_MODE, key, nonce);
+    final Cipher cipher = getCipher();
+
+    initCipher(cipher, Cipher.ENCRYPT_MODE, key, nonce);
 
     if (associatedData != null) {
       cipher.updateAAD(associatedData, aadOffset, aadLength);
@@ -66,7 +70,9 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
                      final ByteBuffer ciphertext,
                      final ByteBuffer plaintext) throws AEADBadTagException, ShortBufferException {
 
-    initCipher(Cipher.DECRYPT_MODE, key, nonce);
+    final Cipher cipher = getCipher();
+
+    initCipher(cipher, Cipher.DECRYPT_MODE, key, nonce);
 
     if (associatedData != null) {
       cipher.updateAAD(associatedData);
@@ -87,7 +93,9 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
                      final byte[] plaintext,
                      final int plaintextOffset) throws AEADBadTagException, ShortBufferException {
 
-    initCipher(Cipher.DECRYPT_MODE, key, nonce);
+    final Cipher cipher = getCipher();
+
+    initCipher(cipher, Cipher.DECRYPT_MODE, key, nonce);
 
     if (associatedData != null) {
       cipher.updateAAD(associatedData, aadOffset, aadLength);
@@ -97,9 +105,7 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
         cipher.doFinal(ciphertext, ciphertextOffset, ciphertextLength, plaintext, plaintextOffset));
   }
 
-  protected abstract AlgorithmParameterSpec getAlgorithmParameters(final long nonce);
-
-  protected void initCipher(final int mode, final Key key, final long nonce) {
+  protected void initCipher(final Cipher cipher, final int mode, final Key key, final long nonce) {
     final AlgorithmParameterSpec algorithmParameterSpec = getAlgorithmParameters(nonce);
 
     try {

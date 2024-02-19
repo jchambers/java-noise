@@ -1,12 +1,14 @@
 package com.eatthepath.noise;
 
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.ThreadSafe;
 import javax.crypto.AEADBadTagException;
 import javax.crypto.ShortBufferException;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
 import java.security.Key;
 
+@ThreadSafe
 public interface NoiseCipher {
 
   String getName();

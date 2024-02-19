@@ -1,6 +1,7 @@
 package com.eatthepath.noise;
 
 import javax.annotation.concurrent.NotThreadSafe;
+import javax.annotation.concurrent.ThreadSafe;
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.IvParameterSpec;
@@ -8,16 +9,11 @@ import java.nio.ByteBuffer;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.AlgorithmParameterSpec;
 
-@NotThreadSafe
+@ThreadSafe
 class AesGcmCipher extends AbstractNoiseCipher {
 
-  private final ByteBuffer nonceBuffer = ByteBuffer.allocate(12);
-
-  public AesGcmCipher() {
-    super(getCipher());
-  }
-
-  private static Cipher getCipher() {
+  @Override
+  protected Cipher getCipher() {
     try {
       return Cipher.getInstance("AES/GCM/NoPadding");
     } catch (final NoSuchAlgorithmException | NoSuchPaddingException e) {
@@ -27,8 +23,7 @@ class AesGcmCipher extends AbstractNoiseCipher {
 
   @Override
   protected AlgorithmParameterSpec getAlgorithmParameters(final long nonce) {
-    nonceBuffer.putLong(4, nonce);
-    return new IvParameterSpec(nonceBuffer.array());
+    return new IvParameterSpec(ByteBuffer.allocate(12).putLong(4, nonce).array());
   }
 
   @Override
