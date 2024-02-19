@@ -208,4 +208,8 @@ public class CipherState {
   public void rekey() {
     key = cipher.rekey(key);
   }
+
+  NoiseCipher getCipher() {
+    return cipher;
+  }
 }

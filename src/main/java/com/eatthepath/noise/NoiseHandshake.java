@@ -571,4 +571,41 @@ public class NoiseHandshake {
       throw new AssertionError(e);
     }
   }
+
+  public NoiseMessageReaderWriterPair split() {
+    if (!isDone()) {
+      throw new IllegalStateException("Handshake is not finished and expects to exchange more messages");
+    }
+
+    if (handshakePattern.isOneWayPattern()) {
+      // TODO Explain
+      throw new IllegalStateException();
+    }
+
+    final Key[] keys = new Key[2];
+    {
+      final byte[][] derivedKeys = noiseHash.deriveKeys(chainingKey, EMPTY_PAYLOAD, 2);
+
+      for (int i = 0; i < 2; i++) {
+        final byte[] keyBytes;
+
+        if (derivedKeys[i].length > 32) {
+          keyBytes = new byte[32];
+          System.arraycopy(derivedKeys[i], 0, keyBytes, 0, keyBytes.length);
+        } else {
+          keyBytes = derivedKeys[i];
+        }
+
+        keys[i] = new SecretKeySpec(keyBytes, "RAW");
+      }
+    }
+
+    final CipherState readerCipherState = new CipherState(cipherState.getCipher());
+    readerCipherState.setKey(keys[role == Role.INITIATOR ? 1 : 0]);
+
+    final CipherState writerCipherState = new CipherState(cipherState.getCipher());
+    writerCipherState.setKey(keys[role == Role.INITIATOR ? 0 : 1]);
+
+    return new NoiseMessageReaderWriterPair(new NoiseMessageReader(readerCipherState), new NoiseMessageWriter(writerCipherState));
+  }
 }
