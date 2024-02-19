@@ -11,6 +11,8 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.opentest4j.TestAbortedException;
 
+import javax.annotation.Nullable;
+import javax.crypto.AEADBadTagException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.*;
@@ -20,8 +22,7 @@ import java.util.*;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 class NoiseHandshakeTest {
 
@@ -125,8 +126,56 @@ class NoiseHandshakeTest {
 
   @ParameterizedTest
   @MethodSource
-  void completeHandshake(final TestVector testVector) {
+  void completeHandshake(final TestVector testVector) throws InvalidKeySpecException, AEADBadTagException {
     final NoiseHandshakePair handshakePair = buildHandshakePair(testVector);
+
+    @Nullable NoiseMessageReaderWriterPair initiatorReaderWriterPair = null;
+    @Nullable NoiseMessageReaderWriterPair responderReaderWriterPair = null;
+
+    for (int i = 0; i < testVector.messages().size(); i++) {
+      final TestMessage testMessage = testVector.messages().get(i);
+
+      if (i % 2 == 0) {
+        // It's the initiator's turn to send a message to the responder
+        if (initiatorReaderWriterPair != null) {
+          // This is a transport message, not a handshake message
+          assertArrayEquals(testMessage.ciphertext(), initiatorReaderWriterPair.noiseMessageWriter().writeMessage(testMessage.payload()));
+          assertArrayEquals(testMessage.payload(), responderReaderWriterPair.noiseMessageReader().readMessage(testMessage.ciphertext()));
+        } else {
+          // We're still passing handshake messages back and forth
+          assertTrue(handshakePair.initiatorHandshake().expectingWrite());
+          assertTrue(handshakePair.responderHandshake().expectingRead());
+
+          assertArrayEquals(testMessage.ciphertext(), handshakePair.initiatorHandshake().writeMessage(testMessage.payload()));
+          assertArrayEquals(testMessage.payload(), handshakePair.responderHandshake().readMessage(testMessage.ciphertext()));
+        }
+      } else {
+        // It's the responder's turn to send a message to the initiator
+        if (initiatorReaderWriterPair != null) {
+          // This is a transport message, not a handshake message
+          assertArrayEquals(testMessage.ciphertext(), responderReaderWriterPair.noiseMessageWriter().writeMessage(testMessage.payload()));
+          assertArrayEquals(testMessage.payload(), initiatorReaderWriterPair.noiseMessageReader().readMessage(testMessage.ciphertext()));
+        } else {
+          // We're still passing handshake messages back and forth
+          assertTrue(handshakePair.responderHandshake().expectingWrite());
+          assertTrue(handshakePair.initiatorHandshake().expectingRead());
+
+          assertArrayEquals(testMessage.ciphertext(), handshakePair.responderHandshake().writeMessage(testMessage.payload()));
+          assertArrayEquals(testMessage.payload(), handshakePair.initiatorHandshake().readMessage(testMessage.ciphertext()));
+        }
+      }
+
+      if (handshakePair.initiatorHandshake().isDone() && initiatorReaderWriterPair == null) {
+        assertTrue(handshakePair.initiatorHandshake().isDone());
+
+        initiatorReaderWriterPair = handshakePair.initiatorHandshake().split();
+        responderReaderWriterPair = handshakePair.initiatorHandshake().split();
+      }
+    }
+
+    final byte[] message = handshakePair.initiatorHandshake().writeMessage(testVector.messages().get(0).payload());
+
+    assertArrayEquals(testVector.messages().get(0).ciphertext(), message);
   }
 
   private static Stream<Arguments> completeHandshake() throws IOException {

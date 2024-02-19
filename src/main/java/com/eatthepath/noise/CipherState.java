@@ -19,8 +19,17 @@ public class CipherState {
     this.cipher = cipher;
   }
 
-  public void setKey(final Key key) {
-    this.key = key;
+  public void setKey(final byte[] keyBytes) {
+    final byte[] sizedKeyBytes;
+
+    if (keyBytes.length > 32) {
+      sizedKeyBytes = new byte[32];
+      System.arraycopy(keyBytes, 0, sizedKeyBytes, 0, 32);
+    } else {
+      sizedKeyBytes = keyBytes;
+    }
+
+    this.key = cipher.buildKey(sizedKeyBytes);
     this.nonce = 0;
   }
 

@@ -5,8 +5,10 @@ import javax.annotation.concurrent.ThreadSafe;
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.AlgorithmParameterSpec;
 
@@ -48,5 +50,10 @@ class ChaCha20Poly1305Cipher extends AbstractNoiseCipher {
   @Override
   public String getName() {
     return "ChaChaPoly";
+  }
+
+  @Override
+  public Key buildKey(final byte[] keyBytes) {
+    return new SecretKeySpec(keyBytes, "RAW");
   }
 }

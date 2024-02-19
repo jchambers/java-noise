@@ -147,6 +147,8 @@ public interface NoiseCipher {
     return ciphertextLength - 16;
   }
 
+  Key buildKey(byte[] keyBytes);
+
   default Key rekey(final Key key) {
     return new SecretKeySpec(encrypt(key, 0xffffffffffffffffL, null, new byte[32]), "RAW");
   }

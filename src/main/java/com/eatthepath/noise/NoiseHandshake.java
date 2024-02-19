@@ -3,7 +3,6 @@ package com.eatthepath.noise;
 import javax.annotation.Nullable;
 import javax.crypto.AEADBadTagException;
 import javax.crypto.ShortBufferException;
-import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
@@ -174,19 +173,7 @@ public class NoiseHandshake {
     final byte[][] derivedKeys = noiseHash.deriveKeys(chainingKey, inputKeyMaterial, 2);
 
     System.arraycopy(derivedKeys[0], 0, chainingKey, 0, derivedKeys[0].length);
-
-    final Key key;
-
-    if (derivedKeys[1].length == 32) {
-      key = new SecretKeySpec(derivedKeys[1], "RAW");
-    } else {
-      final byte[] truncatedKeyBytes = new byte[32];
-      System.arraycopy(derivedKeys[1], 0, truncatedKeyBytes, 0, truncatedKeyBytes.length);
-
-      key = new SecretKeySpec(truncatedKeyBytes, "RAW");
-    }
-
-    cipherState.setKey(key);
+    cipherState.setKey(derivedKeys[1]);
   }
 
   private void mixHash(final byte[] bytes, final int offset, final int length) {
@@ -582,29 +569,13 @@ public class NoiseHandshake {
       throw new IllegalStateException();
     }
 
-    final Key[] keys = new Key[2];
-    {
-      final byte[][] derivedKeys = noiseHash.deriveKeys(chainingKey, EMPTY_PAYLOAD, 2);
-
-      for (int i = 0; i < 2; i++) {
-        final byte[] keyBytes;
-
-        if (derivedKeys[i].length > 32) {
-          keyBytes = new byte[32];
-          System.arraycopy(derivedKeys[i], 0, keyBytes, 0, keyBytes.length);
-        } else {
-          keyBytes = derivedKeys[i];
-        }
-
-        keys[i] = new SecretKeySpec(keyBytes, "RAW");
-      }
-    }
+    final byte[][] derivedKeys = noiseHash.deriveKeys(chainingKey, EMPTY_PAYLOAD, 2);
 
     final CipherState readerCipherState = new CipherState(cipherState.getCipher());
-    readerCipherState.setKey(keys[role == Role.INITIATOR ? 1 : 0]);
+    readerCipherState.setKey(derivedKeys[role == Role.INITIATOR ? 1 : 0]);
 
     final CipherState writerCipherState = new CipherState(cipherState.getCipher());
-    writerCipherState.setKey(keys[role == Role.INITIATOR ? 0 : 1]);
+    writerCipherState.setKey(derivedKeys[role == Role.INITIATOR ? 0 : 1]);
 
     return new NoiseMessageReaderWriterPair(new NoiseMessageReader(readerCipherState), new NoiseMessageWriter(writerCipherState));
   }
