@@ -13,11 +13,10 @@ import org.opentest4j.TestAbortedException;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.NoSuchAlgorithmException;
-import java.util.HexFormat;
-import java.util.List;
-import java.util.Spliterator;
-import java.util.Spliterators;
+import java.security.*;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.NamedParameterSpec;
+import java.util.*;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -82,8 +81,12 @@ class NoiseHandshakeTest {
       byte[] payload,
 
       @JsonDeserialize(using = HexDeserializer.class)
-      byte[] ciphertext
-  ) {}
+      byte[] ciphertext) {
+
+  }
+
+  private record NoiseHandshakePair(NoiseHandshake initiatorHandshake, NoiseHandshake responderHandshake) {
+  }
 
   @Test
   void getOutboundMessageLength() throws NoSuchPatternException {
@@ -123,14 +126,7 @@ class NoiseHandshakeTest {
   @ParameterizedTest
   @MethodSource
   void completeHandshake(final TestVector testVector) {
-    try {
-      new NamedProtocolHandshakeBuilder(testVector.protocolName(), NoiseHandshake.Role.INITIATOR)
-          .build();
-    } catch (final NoSuchAlgorithmException e) {
-      throw new TestAbortedException("Unsupported algorithm: " + testVector.protocolName(), e);
-    } catch (final NoSuchPatternException e) {
-      throw new TestAbortedException("Unsupported handshake pattern: " + testVector.protocolName());
-    }
+    final NoiseHandshakePair handshakePair = buildHandshakePair(testVector);
   }
 
   private static Stream<Arguments> completeHandshake() throws IOException {
@@ -156,5 +152,106 @@ class NoiseHandshakeTest {
             throw new RuntimeException("Unexpected object in stream: " + entry.getClass().getName());
           }
         });
+  }
+
+  private static NoiseHandshakePair buildHandshakePair(final TestVector testVector) {
+    try {
+      final NoiseHandshake initiatorHandshake;
+      {
+        final NamedProtocolHandshakeBuilder initiatorHandshakeBuilder =
+            new NamedProtocolHandshakeBuilder(testVector.protocolName(), NoiseHandshake.Role.INITIATOR);
+
+        if (testVector.initiatorStaticPrivateKey() != null) {
+          initiatorHandshakeBuilder.setLocalStaticKeyPair(
+              getXECKeyPairFromPrivateKey(testVector.initiatorStaticPrivateKey(), testVector.protocolName()));
+        }
+
+        if (testVector.initiatorEphemeralPrivateKey() != null) {
+          initiatorHandshakeBuilder.setLocalEphemeralKeyPair(
+              getXECKeyPairFromPrivateKey(testVector.initiatorEphemeralPrivateKey(), testVector.protocolName()));
+        }
+
+        if (testVector.initiatorRemoteStaticPublicKey() != null) {
+          initiatorHandshakeBuilder.setRemoteStaticPublicKey(
+              getXECPublicKey(testVector.initiatorRemoteStaticPublicKey(), testVector.protocolName()));
+        }
+
+        initiatorHandshakeBuilder.setPrologue(testVector.initiatorPrologue());
+
+        initiatorHandshake = initiatorHandshakeBuilder.build();
+      }
+
+      final NoiseHandshake responderHandshake;
+      {
+        final NamedProtocolHandshakeBuilder responderHandshakeBuilder =
+            new NamedProtocolHandshakeBuilder(testVector.protocolName(), NoiseHandshake.Role.RESPONDER);
+
+        if (testVector.responderStaticPrivateKey() != null) {
+          responderHandshakeBuilder.setLocalStaticKeyPair(
+              getXECKeyPairFromPrivateKey(testVector.responderStaticPrivateKey(), testVector.protocolName()));
+        }
+
+        if (testVector.responderEphemeralPrivateKey() != null) {
+          responderHandshakeBuilder.setLocalEphemeralKeyPair(
+              getXECKeyPairFromPrivateKey(testVector.responderEphemeralPrivateKey(), testVector.protocolName()));
+        }
+
+        if (testVector.responderRemoteStaticPublicKey() != null) {
+          responderHandshakeBuilder.setRemoteStaticPublicKey(
+              getXECPublicKey(testVector.responderRemoteStaticPublicKey(), testVector.protocolName()));
+        }
+
+        responderHandshakeBuilder.setPrologue(testVector.responderPrologue());
+
+        responderHandshake = responderHandshakeBuilder.build();
+      }
+
+      return new NoiseHandshakePair(initiatorHandshake, responderHandshake);
+    } catch (final NoSuchAlgorithmException e) {
+      throw new TestAbortedException("Unsupported algorithm: " + testVector.protocolName(), e);
+    } catch (final NoSuchPatternException e) {
+      throw new TestAbortedException("Unsupported handshake pattern: " + testVector.protocolName());
+    }
+  }
+
+  private static PublicKey getXECPublicKey(final byte[] publicKeyBytes, final String noiseProtocolName) {
+    try {
+      final String keyAgreementName = noiseProtocolName.split("_")[2];
+      final NoiseKeyAgreement noiseKeyAgreement = new DefaultProtocolNameResolver().getKeyAgreement(keyAgreementName);
+
+      return noiseKeyAgreement.deserializePublicKey(publicKeyBytes);
+    } catch (final NoSuchAlgorithmException | InvalidKeySpecException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
+  private static KeyPair getXECKeyPairFromPrivateKey(final byte[] privateKeyBytes, final String noiseProtocolName) {
+    // TODO This whole thing is a reeeeeeeeal ugly hack and really ought to get replaced
+    final String keyAgreementAlgorithm;
+    {
+      final String keyAgreementName = noiseProtocolName.split("_")[2];
+
+      keyAgreementAlgorithm = switch (keyAgreementName) {
+        case "25519" -> "X25519";
+        case "448" -> "X448";
+        default -> throw new IllegalArgumentException("Unexpected key agreement name: " + keyAgreementName);
+      };
+    }
+
+    try {
+      // Via https://stackoverflow.com/questions/58583774/how-to-generate-publickey-for-privatekey-in-x25519
+      final KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(keyAgreementAlgorithm);
+
+      keyPairGenerator.initialize(new NamedParameterSpec(keyAgreementAlgorithm), new SecureRandom() {
+        @Override
+        public void nextBytes(final byte[] bytes) {
+          System.arraycopy(privateKeyBytes, 0, bytes, 0, bytes.length);
+        }
+      });
+
+      return keyPairGenerator.generateKeyPair();
+    } catch (final InvalidAlgorithmParameterException | NoSuchAlgorithmException e) {
+      throw new RuntimeException(e);
+    }
   }
 }

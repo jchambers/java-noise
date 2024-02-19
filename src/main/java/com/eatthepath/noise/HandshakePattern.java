@@ -160,6 +160,11 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
     return new HandshakePattern.MessagePattern(sender, tokens);
   }
 
+  public boolean isOneWayPattern() {
+    return Arrays.stream(handshakeMessagePatterns())
+        .allMatch(messagePattern -> messagePattern.sender() == NoiseHandshake.Role.INITIATOR);
+  }
+
   public boolean requiresLocalStaticKeyPair(final NoiseHandshake.Role role) {
     // The given role needs a local static key pair if any pre-handshake message or handshake message involves that role
     // sending a static key to the other party
