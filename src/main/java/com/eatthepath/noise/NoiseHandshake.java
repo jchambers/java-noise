@@ -365,8 +365,10 @@ public class NoiseHandshake {
             localEphemeralKeyPair = keyAgreement.generateKeyPair();
           }
 
-          System.arraycopy(keyAgreement.serializePublicKey(localEphemeralKeyPair.getPublic()), 0,
-              message, offset, keyAgreement.getPublicKeyLength());
+          final byte[] ephemeralKeyBytes = keyAgreement.serializePublicKey(localEphemeralKeyPair.getPublic());
+          System.arraycopy(ephemeralKeyBytes, 0, message, offset, keyAgreement.getPublicKeyLength());
+
+          mixHash(ephemeralKeyBytes, 0, ephemeralKeyBytes.length);
 
           offset += keyAgreement.getPublicKeyLength();
         }
@@ -438,10 +440,12 @@ public class NoiseHandshake {
           }
 
           final byte[] ephemeralKeyBytes = new byte[keyAgreement.getPublicKeyLength()];
+          System.arraycopy(message, offset, ephemeralKeyBytes, 0, ephemeralKeyBytes.length);
 
           remoteEphemeralPublicKey = keyAgreement.deserializePublicKey(ephemeralKeyBytes);
 
-          System.arraycopy(message, offset, ephemeralKeyBytes, 0, ephemeralKeyBytes.length);
+          mixHash(ephemeralKeyBytes, 0, ephemeralKeyBytes.length);
+
           offset += ephemeralKeyBytes.length;
         }
 
@@ -464,9 +468,9 @@ public class NoiseHandshake {
       }
     }
 
-    offset += decryptAndHash(message, offset, payloadLength, payload, payloadOffset);
+    currentMessagePattern += 1;
 
-    return offset;
+    return decryptAndHash(message, offset, messageLength - offset, payload, payloadOffset);
   }
 
   private void handleMixKeyToken(final HandshakePattern.Token token) {
