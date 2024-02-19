@@ -42,11 +42,11 @@ public class NoiseHandshake {
     RESPONDER
   }
 
-  public NoiseHandshake(final HandshakePattern handshakePattern,
-                        final Role role,
+  public NoiseHandshake(final Role role,
+                        final HandshakePattern handshakePattern,
+                        final NoiseKeyAgreement keyAgreement,
                         final NoiseCipher noiseCipher,
                         final NoiseHash noiseHash,
-                        final NoiseKeyAgreement keyAgreement,
                         @Nullable final byte[] prologue,
                         @Nullable final KeyPair localStaticKeyPair,
                         @Nullable final KeyPair localEphemeralKeyPair,

@@ -88,11 +88,9 @@ public class NamedProtocolHandshakeBuilder {
 
     // TODO Check key compatibility if applicable
 
-    return new NoiseHandshake(handshakePattern,
-        role,
-        cipher,
+    return new NoiseHandshake(role, handshakePattern,
+        keyAgreement, cipher,
         hash,
-        keyAgreement,
         prologue,
         localStaticKeyPair,
         localEphemeralKeyPair,

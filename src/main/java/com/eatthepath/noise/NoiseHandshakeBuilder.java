@@ -80,11 +80,9 @@ public class NoiseHandshakeBuilder {
 
     // TODO Check key compatibility
 
-    return new NoiseHandshake(handshakePattern,
-        role,
-        cipher,
+    return new NoiseHandshake(role, handshakePattern,
+        keyAgreement, cipher,
         hash,
-        keyAgreement,
         prologue,
         localStaticKeyPair,
         localEphemeralKeyPair,
