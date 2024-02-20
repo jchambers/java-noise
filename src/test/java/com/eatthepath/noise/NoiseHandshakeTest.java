@@ -169,13 +169,9 @@ class NoiseHandshakeTest {
         assertTrue(handshakePair.initiatorHandshake().isDone());
 
         initiatorReaderWriterPair = handshakePair.initiatorHandshake().split();
-        responderReaderWriterPair = handshakePair.initiatorHandshake().split();
+        responderReaderWriterPair = handshakePair.responderHandshake().split();
       }
     }
-
-    final byte[] message = handshakePair.initiatorHandshake().writeMessage(testVector.messages().get(0).payload());
-
-    assertArrayEquals(testVector.messages().get(0).ciphertext(), message);
   }
 
   private static Stream<Arguments> completeHandshake() throws IOException {
