@@ -457,7 +457,7 @@ public class NoiseHandshake {
           final int staticKeyCiphertextLength = keyAgreement.getPublicKeyLength() + (cipherState.hasKey() ? 16 : 0);
           final byte[] staticKeyBytes = new byte[keyAgreement.getPublicKeyLength()];
 
-          decryptAndHash(message, offset, staticKeyCiphertextLength, staticKeyBytes, staticKeyBytes.length);
+          decryptAndHash(message, offset, staticKeyCiphertextLength, staticKeyBytes, 0);
 
           remoteStaticPublicKey = keyAgreement.deserializePublicKey(staticKeyBytes);
 
