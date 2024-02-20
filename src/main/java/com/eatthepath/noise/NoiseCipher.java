@@ -22,6 +22,7 @@ public interface NoiseCipher {
 
     try {
       encrypt(key, nonce, associatedData, plaintext, ciphertext);
+      ciphertext.flip();
     } catch (final ShortBufferException e) {
       // This should never happen for a buffer we control
       throw new AssertionError(e);
@@ -127,8 +128,8 @@ public interface NoiseCipher {
   int decrypt(final Key key,
               final long nonce,
               @Nullable final byte[] associatedData,
-              final int aadLength,
               final int aadOffset,
+              final int aadLength,
               final byte[] ciphertext,
               final int ciphertextOffset,
               final int ciphertextLength,
