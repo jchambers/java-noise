@@ -4,6 +4,7 @@ import javax.annotation.Nullable;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
+import java.util.List;
 
 public class NamedProtocolHandshakeBuilder {
 
@@ -18,6 +19,7 @@ public class NamedProtocolHandshakeBuilder {
   @Nullable private KeyPair localStaticKeyPair;
   @Nullable private PublicKey remoteEphemeralPublicKey;
   @Nullable private PublicKey remoteStaticPublicKey;
+  @Nullable private List<byte[]> preSharedKeys;
 
   @Nullable private byte[] prologue;
 
@@ -42,6 +44,11 @@ public class NamedProtocolHandshakeBuilder {
     this.hash = protocolNameResolver.getHash(components[4]);
 
     this.role = role;
+  }
+
+  public NamedProtocolHandshakeBuilder setPrologue(@Nullable final byte[] prologue) {
+    this.prologue = prologue;
+    return this;
   }
 
   public NamedProtocolHandshakeBuilder setLocalEphemeralKeyPair(@Nullable final KeyPair localEphemeralKeyPair) {
@@ -72,8 +79,22 @@ public class NamedProtocolHandshakeBuilder {
     return this;
   }
 
-  public NamedProtocolHandshakeBuilder setPrologue(@Nullable final byte[] prologue) {
-    this.prologue = prologue;
+  public NamedProtocolHandshakeBuilder setPreSharedKeys(final List<byte[]> preSharedKeys) {
+    final int requiredPreSharedKeys = handshakePattern.getRequiredPreSharedKeyCount();
+
+    if (requiredPreSharedKeys == 0) {
+      throw new IllegalStateException(handshakePattern.name() + " handshake pattern does not allow pre-shared keys");
+    }
+
+    if (preSharedKeys.size() != requiredPreSharedKeys) {
+      throw new IllegalArgumentException(handshakePattern.name() + " requires exactly " + requiredPreSharedKeys + " pre-shared keys");
+    }
+
+    if (preSharedKeys.stream().anyMatch(preSharedKey -> preSharedKey.length != 32)) {
+      throw new IllegalArgumentException("Pre-shared keys must be exactly 32 bytes");
+    }
+
+    this.preSharedKeys = preSharedKeys;
     return this;
   }
 
@@ -95,6 +116,7 @@ public class NamedProtocolHandshakeBuilder {
         localStaticKeyPair,
         localEphemeralKeyPair,
         remoteStaticPublicKey,
-        remoteEphemeralPublicKey);
+        remoteEphemeralPublicKey,
+        preSharedKeys);
   }
 }

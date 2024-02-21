@@ -38,7 +38,8 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
     EE,
     ES,
     SE,
-    SS;
+    SS,
+    PSK;
 
     static Token fromString(final String string) {
       return switch (string) {
@@ -48,6 +49,7 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
         case "es", "ES" -> ES;
         case "se", "SE" -> SE;
         case "ss", "SS" -> SS;
+        case "psk", "PSK" -> PSK;
         default -> throw new IllegalArgumentException("Unrecognized token: " + string);
       };
     }
@@ -170,15 +172,8 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
     // sending a static key to the other party
     return Stream.concat(Arrays.stream(preMessagePatterns()), Arrays.stream(handshakeMessagePatterns()))
         .filter(messagePattern -> messagePattern.sender() == role)
-        .anyMatch(messagePattern -> {
-          for (final HandshakePattern.Token token : messagePattern.tokens()) {
-            if (token == HandshakePattern.Token.S) {
-              return true;
-            }
-          }
-
-          return false;
-        });
+        .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
+        .anyMatch(token -> token == Token.S);
   }
 
   public boolean requiresRemoteStaticPublicKey(final NoiseHandshake.Role role) {
@@ -186,23 +181,34 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
     // from the other party in a pre-handshake message
     return Arrays.stream(preMessagePatterns())
         .filter(messagePattern -> messagePattern.sender() != role)
-        .anyMatch(messagePattern -> {
-          for (final HandshakePattern.Token token : messagePattern.tokens()) {
-            if (token == HandshakePattern.Token.S) {
-              return true;
-            }
-          }
+        .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
+        .anyMatch(token -> token == Token.S);
+  }
 
-          return false;
-        });
+  public boolean isPreSharedKeyHandshake() {
+    return Arrays.stream(handshakeMessagePatterns())
+        .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
+        .anyMatch(token -> token == Token.PSK);
+  }
+
+  public int getRequiredPreSharedKeyCount() {
+    return Math.toIntExact(Arrays.stream(handshakeMessagePatterns())
+        .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
+        .filter(token -> token == Token.PSK)
+        .count());
   }
 
   @Override
   public boolean equals(final Object o) {
-    if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
-    final HandshakePattern that = (HandshakePattern) o;
-    return Objects.equals(name, that.name) && Arrays.equals(preMessagePatterns, that.preMessagePatterns) && Arrays.equals(handshakeMessagePatterns, that.handshakeMessagePatterns);
+    if (this == o) {
+      return true;
+    } else if (o instanceof final HandshakePattern that) {
+      return Objects.equals(name, that.name)
+          && Arrays.equals(preMessagePatterns, that.preMessagePatterns)
+          && Arrays.equals(handshakeMessagePatterns, that.handshakeMessagePatterns);
+    } else {
+      return false;
+    }
   }
 
   @Override

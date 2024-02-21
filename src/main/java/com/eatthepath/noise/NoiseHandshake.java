@@ -8,6 +8,7 @@ import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 
 public class NoiseHandshake {
 
@@ -36,7 +37,12 @@ public class NoiseHandshake {
   @Nullable
   private PublicKey remoteStaticPublicKey;
 
-  private static final byte[] EMPTY_PAYLOAD = new byte[0];
+  @Nullable
+  private final List<byte[]> preSharedKeys;
+
+  private int currentPreSharedKey;
+
+  private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
 
   public enum Role {
     INITIATOR,
@@ -52,7 +58,8 @@ public class NoiseHandshake {
                         @Nullable final KeyPair localStaticKeyPair,
                         @Nullable final KeyPair localEphemeralKeyPair,
                         @Nullable final PublicKey remoteStaticPublicKey,
-                        @Nullable final PublicKey remoteEphemeralPublicKey) {
+                        @Nullable final PublicKey remoteEphemeralPublicKey,
+                        @Nullable final List<byte[]> preSharedKeys) {
 
     this.handshakePattern = handshakePattern;
     this.role = role;
@@ -81,11 +88,28 @@ public class NoiseHandshake {
       }
     }
 
+    final int requiredPreSharedKeys = handshakePattern.getRequiredPreSharedKeyCount();
+
+    if (requiredPreSharedKeys > 0) {
+      if (preSharedKeys == null || preSharedKeys.size() != requiredPreSharedKeys) {
+        throw new IllegalArgumentException(handshakePattern.name() + " handshake pattern requires " + requiredPreSharedKeys + " pre-shared keys");
+      }
+
+      if (preSharedKeys.stream().anyMatch(preSharedKey -> preSharedKey.length != 32)) {
+        throw new IllegalArgumentException("Pre-shared keys must be exactly 32 bytes");
+      }
+    } else {
+      if (preSharedKeys != null && !preSharedKeys.isEmpty()) {
+        throw new IllegalArgumentException(handshakePattern.name() + " handshake pattern does not allow pre-shared keys");
+      }
+    }
+
     // TODO Validate key compatibility
     this.localStaticKeyPair = localStaticKeyPair;
     this.localEphemeralKeyPair = localEphemeralKeyPair;
     this.remoteStaticPublicKey = remoteStaticPublicKey;
     this.remoteEphemeralPublicKey = remoteEphemeralPublicKey;
+    this.preSharedKeys = preSharedKeys;
 
     this.noiseProtocolName = "Noise_" +
         handshakePattern.name() + "_" +
@@ -113,12 +137,7 @@ public class NoiseHandshake {
     }
 
     chainingKey = hash.clone();
-
-    if (prologue != null) {
-      mixHash(prologue, 0, prologue.length);
-    } else {
-      mixHash(EMPTY_PAYLOAD, 0, 0);
-    }
+    mixHash(prologue != null ? prologue : EMPTY_BYTE_ARRAY);
 
     Arrays.stream(handshakePattern.preMessagePatterns())
         // Process the initiator's keys first; "initiator" comes before "responder" in the `Role` enum, and so we don't
@@ -156,12 +175,12 @@ public class NoiseHandshake {
 
                 yield staticPublicKey;
               }
-              case EE, ES, SE, SS ->
+              case EE, ES, SE, SS, PSK ->
                   throw new IllegalArgumentException("Key-mixing tokens must not appear in pre-messages");
             }))
         .forEach(publicKey -> {
           final byte[] publicKeyBytes = keyAgreement.serializePublicKey(publicKey);
-          mixHash(publicKeyBytes, 0, publicKeyBytes.length);
+          mixHash(publicKeyBytes);
         });
   }
 
@@ -176,6 +195,10 @@ public class NoiseHandshake {
     cipherState.setKey(derivedKeys[1]);
   }
 
+  private void mixHash(final byte[] bytes) {
+    mixHash(bytes, 0, bytes.length);
+  }
+
   private void mixHash(final byte[] bytes, final int offset, final int length) {
     final MessageDigest messageDigest = noiseHash.getMessageDigest();
 
@@ -188,6 +211,14 @@ public class NoiseHandshake {
       // This should never happen
       throw new AssertionError(e);
     }
+  }
+
+  private void mixKeyAndHash(final byte[] preSharedKey) {
+    final byte[][] derivedKeys = noiseHash.deriveKeys(chainingKey, preSharedKey, 3);
+
+    System.arraycopy(derivedKeys[0], 0, chainingKey, 0, derivedKeys[0].length);
+    mixHash(derivedKeys[1]);
+    cipherState.setKey(derivedKeys[2]);
   }
 
   private int encryptAndHash(final byte[] plaintext,
@@ -218,7 +249,7 @@ public class NoiseHandshake {
     return plaintextLength;
   }
 
-  public boolean expectingRead() {
+  public boolean isExpectingRead() {
     if (currentMessagePattern < handshakePattern.handshakeMessagePatterns().length) {
       return handshakePattern.handshakeMessagePatterns()[currentMessagePattern].sender() != role;
     }
@@ -227,7 +258,7 @@ public class NoiseHandshake {
     return false;
   }
 
-  public boolean expectingWrite() {
+  public boolean isExpectingWrite() {
     if (currentMessagePattern < handshakePattern.handshakeMessagePatterns().length) {
       return handshakePattern.handshakeMessagePatterns()[currentMessagePattern].sender() == role;
     }
@@ -260,29 +291,31 @@ public class NoiseHandshake {
               handshakePattern.handshakeMessagePatterns().length, message));
     }
 
-    boolean hasKey = false;
+    final boolean isPreSharedKeyHandshake = handshakePattern.isPreSharedKeyHandshake();
 
     // Run through all of this handshake's message patterns to see if we have a key prior to reaching the message of
     // interest
-    for (int i = 0; i < message; i++) {
-      for (final HandshakePattern.Token token : handshakePattern.handshakeMessagePatterns()[i].tokens()) {
-        switch (token) {
-          case EE, ES, SE, SS -> hasKey = true;
-          default -> {}
-        }
-      }
-
-      // No need to analyze additional message patterns if we already know we have a key
-      if (hasKey) {
-        break;
-      }
-    }
+    boolean hasKey = Arrays.stream(handshakePattern.handshakeMessagePatterns())
+        .limit(message)
+        .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
+        .anyMatch(token -> token == HandshakePattern.Token.EE
+            || token == HandshakePattern.Token.ES
+            || token == HandshakePattern.Token.SE
+            || token == HandshakePattern.Token.SS
+            || token == HandshakePattern.Token.PSK
+            || (token == HandshakePattern.Token.E && isPreSharedKeyHandshake));
 
     int messageLength = 0;
 
     for (final HandshakePattern.Token token : handshakePattern.handshakeMessagePatterns()[message].tokens()) {
       switch (token) {
-        case E -> messageLength += publicKeyLength;
+        case E -> {
+          messageLength += publicKeyLength;
+
+          if (isPreSharedKeyHandshake) {
+            hasKey = true;
+          }
+        }
         case S -> {
           messageLength += publicKeyLength;
 
@@ -291,7 +324,7 @@ public class NoiseHandshake {
             messageLength += 16;
           }
         }
-        case EE, ES, SE, SS -> hasKey = true;
+        case EE, ES, SE, SS, PSK -> hasKey = true;
       }
     }
 
@@ -347,7 +380,7 @@ public class NoiseHandshake {
 
     // TODO Check message buffer length?
 
-    if (!expectingWrite()) {
+    if (!isExpectingWrite()) {
       throw new IllegalStateException("Handshake not currently expecting to write a message");
     }
 
@@ -368,7 +401,11 @@ public class NoiseHandshake {
           final byte[] ephemeralKeyBytes = keyAgreement.serializePublicKey(localEphemeralKeyPair.getPublic());
           System.arraycopy(ephemeralKeyBytes, 0, message, offset, keyAgreement.getPublicKeyLength());
 
-          mixHash(ephemeralKeyBytes, 0, ephemeralKeyBytes.length);
+          mixHash(ephemeralKeyBytes);
+
+          if (handshakePattern.isPreSharedKeyHandshake()) {
+            mixKey(ephemeralKeyBytes);
+          }
 
           offset += keyAgreement.getPublicKeyLength();
         }
@@ -387,14 +424,14 @@ public class NoiseHandshake {
           }
         }
 
-        case EE, ES, SE, SS -> handleMixKeyToken(token);
+        case EE, ES, SE, SS, PSK -> handleMixKeyToken(token);
       }
     }
 
     if (payload != null) {
       offset += encryptAndHash(payload, payloadOffset, payloadLength, message, offset);
     } else {
-      offset += encryptAndHash(EMPTY_PAYLOAD, 0, 0, message, offset);
+      offset += encryptAndHash(EMPTY_BYTE_ARRAY, 0, 0, message, offset);
     }
 
     currentMessagePattern += 1;
@@ -422,11 +459,10 @@ public class NoiseHandshake {
                          final byte[] payload,
                          final int payloadOffset) throws InvalidKeySpecException, ShortBufferException, AEADBadTagException {
 
-    if (!expectingRead()) {
+    if (!isExpectingRead()) {
       throw new IllegalStateException("Handshake not currently expecting to read a message");
     }
 
-    final int payloadLength = getPayloadLength(messageLength);
     int offset = messageOffset;
 
     final HandshakePattern.MessagePattern messagePattern =
@@ -444,7 +480,11 @@ public class NoiseHandshake {
 
           remoteEphemeralPublicKey = keyAgreement.deserializePublicKey(ephemeralKeyBytes);
 
-          mixHash(ephemeralKeyBytes, 0, ephemeralKeyBytes.length);
+          mixHash(ephemeralKeyBytes);
+
+          if (handshakePattern.isPreSharedKeyHandshake()) {
+            mixKey(ephemeralKeyBytes);
+          }
 
           offset += ephemeralKeyBytes.length;
         }
@@ -464,7 +504,7 @@ public class NoiseHandshake {
           offset += staticKeyCiphertextLength;
         }
 
-        case EE, ES, SE, SS -> handleMixKeyToken(token);
+        case EE, ES, SE, SS, PSK -> handleMixKeyToken(token);
       }
     }
 
@@ -554,6 +594,14 @@ public class NoiseHandshake {
           mixKey(keyAgreement.generateSecret(localStaticKeyPair.getPrivate(), remoteStaticPublicKey));
         }
 
+        case PSK -> {
+          if (preSharedKeys == null || currentPreSharedKey >= preSharedKeys.size()) {
+            throw new IllegalStateException("No pre-shared key available");
+          }
+
+          mixKeyAndHash(preSharedKeys.get(currentPreSharedKey++));
+        }
+
         default -> throw new IllegalArgumentException("Unexpected key-mixing token: " + token.name());
       }
     } catch (final InvalidKeyException e) {
@@ -573,7 +621,7 @@ public class NoiseHandshake {
       throw new IllegalStateException();
     }
 
-    final byte[][] derivedKeys = noiseHash.deriveKeys(chainingKey, EMPTY_PAYLOAD, 2);
+    final byte[][] derivedKeys = noiseHash.deriveKeys(chainingKey, EMPTY_BYTE_ARRAY, 2);
 
     final CipherState readerCipherState = new CipherState(cipherState.getCipher());
     readerCipherState.setKey(derivedKeys[role == Role.INITIATOR ? 1 : 0]);

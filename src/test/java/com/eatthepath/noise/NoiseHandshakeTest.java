@@ -54,6 +54,10 @@ class NoiseHandshakeTest {
       @JsonDeserialize(using = HexDeserializer.class)
       byte[] initiatorRemoteStaticPublicKey,
 
+      @JsonProperty("init_psks")
+      @JsonDeserialize(contentUsing = HexDeserializer.class)
+      List<byte[]> initiatorPreSharedKeys,
+
       @JsonProperty("resp_prologue")
       @JsonDeserialize(using = HexDeserializer.class)
       byte[] responderPrologue,
@@ -69,6 +73,10 @@ class NoiseHandshakeTest {
       @JsonProperty("resp_remote_static")
       @JsonDeserialize(using = HexDeserializer.class)
       byte[] responderRemoteStaticPublicKey,
+
+      @JsonProperty("resp_psks")
+      @JsonDeserialize(contentUsing = HexDeserializer.class)
+      List<byte[]> responderPreSharedKeys,
 
       @JsonProperty("handshake_hash")
       @JsonDeserialize(using = HexDeserializer.class)
@@ -143,8 +151,8 @@ class NoiseHandshakeTest {
           assertArrayEquals(testMessage.payload(), responderReaderWriterPair.noiseMessageReader().readMessage(testMessage.ciphertext()));
         } else {
           // We're still passing handshake messages back and forth
-          assertTrue(handshakePair.initiatorHandshake().expectingWrite());
-          assertTrue(handshakePair.responderHandshake().expectingRead());
+          assertTrue(handshakePair.initiatorHandshake().isExpectingWrite());
+          assertTrue(handshakePair.responderHandshake().isExpectingRead());
 
           assertArrayEquals(testMessage.ciphertext(), handshakePair.initiatorHandshake().writeMessage(testMessage.payload()));
           assertArrayEquals(testMessage.payload(), handshakePair.responderHandshake().readMessage(testMessage.ciphertext()));
@@ -157,8 +165,8 @@ class NoiseHandshakeTest {
           assertArrayEquals(testMessage.payload(), initiatorReaderWriterPair.noiseMessageReader().readMessage(testMessage.ciphertext()));
         } else {
           // We're still passing handshake messages back and forth
-          assertTrue(handshakePair.responderHandshake().expectingWrite());
-          assertTrue(handshakePair.initiatorHandshake().expectingRead());
+          assertTrue(handshakePair.responderHandshake().isExpectingWrite());
+          assertTrue(handshakePair.initiatorHandshake().isExpectingRead());
 
           assertArrayEquals(testMessage.ciphertext(), handshakePair.responderHandshake().writeMessage(testMessage.payload()));
           assertArrayEquals(testMessage.payload(), handshakePair.initiatorHandshake().readMessage(testMessage.ciphertext()));
@@ -221,6 +229,10 @@ class NoiseHandshakeTest {
               getXECPublicKey(testVector.initiatorRemoteStaticPublicKey(), testVector.protocolName()));
         }
 
+        if (testVector.initiatorPreSharedKeys() != null) {
+          initiatorHandshakeBuilder.setPreSharedKeys(testVector.initiatorPreSharedKeys());
+        }
+
         initiatorHandshakeBuilder.setPrologue(testVector.initiatorPrologue());
 
         initiatorHandshake = initiatorHandshakeBuilder.build();
@@ -244,6 +256,10 @@ class NoiseHandshakeTest {
         if (testVector.responderRemoteStaticPublicKey() != null) {
           responderHandshakeBuilder.setRemoteStaticPublicKey(
               getXECPublicKey(testVector.responderRemoteStaticPublicKey(), testVector.protocolName()));
+        }
+
+        if (testVector.responderPreSharedKeys() != null) {
+          responderHandshakeBuilder.setPreSharedKeys(testVector.responderPreSharedKeys());
         }
 
         responderHandshakeBuilder.setPrologue(testVector.responderPrologue());
