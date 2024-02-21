@@ -137,18 +137,18 @@ class NoiseHandshakeTest {
   void completeHandshake(final TestVector testVector) throws InvalidKeySpecException, AEADBadTagException {
     final NoiseHandshakePair handshakePair = buildHandshakePair(testVector);
 
-    @Nullable NoiseMessageReaderWriterPair initiatorReaderWriterPair = null;
-    @Nullable NoiseMessageReaderWriterPair responderReaderWriterPair = null;
+    @Nullable NoiseTransport initiatorTransport = null;
+    @Nullable NoiseTransport responderTransport = null;
 
     for (int i = 0; i < testVector.messages().size(); i++) {
       final TestMessage testMessage = testVector.messages().get(i);
 
       if (i % 2 == 0) {
         // It's the initiator's turn to send a message to the responder
-        if (initiatorReaderWriterPair != null) {
+        if (initiatorTransport != null) {
           // This is a transport message, not a handshake message
-          assertArrayEquals(testMessage.ciphertext(), initiatorReaderWriterPair.noiseMessageWriter().writeMessage(testMessage.payload()));
-          assertArrayEquals(testMessage.payload(), responderReaderWriterPair.noiseMessageReader().readMessage(testMessage.ciphertext()));
+          assertArrayEquals(testMessage.ciphertext(), initiatorTransport.writeMessage(testMessage.payload()));
+          assertArrayEquals(testMessage.payload(), responderTransport.readMessage(testMessage.ciphertext()));
         } else {
           // We're still passing handshake messages back and forth
           assertTrue(handshakePair.initiatorHandshake().isExpectingWrite());
@@ -159,10 +159,10 @@ class NoiseHandshakeTest {
         }
       } else {
         // It's the responder's turn to send a message to the initiator
-        if (initiatorReaderWriterPair != null) {
+        if (initiatorTransport != null) {
           // This is a transport message, not a handshake message
-          assertArrayEquals(testMessage.ciphertext(), responderReaderWriterPair.noiseMessageWriter().writeMessage(testMessage.payload()));
-          assertArrayEquals(testMessage.payload(), initiatorReaderWriterPair.noiseMessageReader().readMessage(testMessage.ciphertext()));
+          assertArrayEquals(testMessage.ciphertext(), responderTransport.writeMessage(testMessage.payload()));
+          assertArrayEquals(testMessage.payload(), initiatorTransport.readMessage(testMessage.ciphertext()));
         } else {
           // We're still passing handshake messages back and forth
           assertTrue(handshakePair.responderHandshake().isExpectingWrite());
@@ -173,11 +173,11 @@ class NoiseHandshakeTest {
         }
       }
 
-      if (handshakePair.initiatorHandshake().isDone() && initiatorReaderWriterPair == null) {
+      if (handshakePair.initiatorHandshake().isDone() && initiatorTransport == null) {
         assertTrue(handshakePair.initiatorHandshake().isDone());
 
-        initiatorReaderWriterPair = handshakePair.initiatorHandshake().split();
-        responderReaderWriterPair = handshakePair.responderHandshake().split();
+        initiatorTransport = handshakePair.initiatorHandshake().split();
+        responderTransport = handshakePair.responderHandshake().split();
       }
     }
   }

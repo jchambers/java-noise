@@ -611,7 +611,7 @@ public class NoiseHandshake {
     }
   }
 
-  public NoiseMessageReaderWriterPair split() {
+  public NoiseTransport split() {
     if (!isDone()) {
       throw new IllegalStateException("Handshake is not finished and expects to exchange more messages");
     }
@@ -629,6 +629,6 @@ public class NoiseHandshake {
     final CipherState writerCipherState = new CipherState(cipherState.getCipher());
     writerCipherState.setKey(derivedKeys[role == Role.INITIATOR ? 0 : 1]);
 
-    return new NoiseMessageReaderWriterPair(new NoiseMessageReader(readerCipherState), new NoiseMessageWriter(writerCipherState));
+    return new NoiseTransport(readerCipherState, writerCipherState);
   }
 }
