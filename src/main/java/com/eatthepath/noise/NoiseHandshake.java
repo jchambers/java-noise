@@ -249,6 +249,11 @@ public class NoiseHandshake {
     return plaintextLength;
   }
 
+  // Visible for testing
+  boolean isOneWayHandshake() {
+    return handshakePattern.isOneWayPattern();
+  }
+
   public boolean isExpectingRead() {
     if (currentMessagePattern < handshakePattern.handshakeMessagePatterns().length) {
       return handshakePattern.handshakeMessagePatterns()[currentMessagePattern].sender() != role;
@@ -630,7 +635,7 @@ public class NoiseHandshake {
       throw new IllegalStateException();
     }
 
-    if (role != Role.INITIATOR) {
+    if (role != Role.RESPONDER) {
       // TODO Explain
       throw new IllegalStateException();
     }

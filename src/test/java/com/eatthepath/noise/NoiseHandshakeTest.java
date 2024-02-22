@@ -137,6 +137,38 @@ class NoiseHandshakeTest {
   void completeHandshake(final TestVector testVector) throws InvalidKeySpecException, AEADBadTagException {
     final NoiseHandshakePair handshakePair = buildHandshakePair(testVector);
 
+    if (handshakePair.initiatorHandshake().isOneWayHandshake()) {
+      testOneWayHandshake(testVector, handshakePair);
+    } else {
+      testBidirectionalHandshake(testVector, handshakePair);
+    }
+  }
+
+  private void testOneWayHandshake(final TestVector testVector, final NoiseHandshakePair handshakePair)
+      throws InvalidKeySpecException, AEADBadTagException {
+
+    @Nullable NoiseTransportWriter transportWriter = null;
+    @Nullable NoiseTransportReader transportReader = null;
+
+    for (final TestMessage message : testVector.messages()) {
+      if (transportWriter != null) {
+        // We've finished the handshake and the test messages are now transport messages
+        assertArrayEquals(message.ciphertext(), transportWriter.writeMessage(message.payload()));
+        assertArrayEquals(message.payload(), transportReader.readMessage(message.ciphertext()));
+      } else {
+        // The handshake isn't done and more handshake messages are expected
+        assertArrayEquals(message.ciphertext(), handshakePair.initiatorHandshake().writeMessage(message.payload()));
+        assertArrayEquals(message.payload(), handshakePair.responderHandshake().readMessage(message.ciphertext()));
+      }
+
+      if (handshakePair.initiatorHandshake().isDone() && transportWriter == null) {
+        transportWriter = handshakePair.initiatorHandshake().toTransportWriter();
+        transportReader = handshakePair.responderHandshake().toTransportReader();
+      }
+    }
+  }
+
+  private void testBidirectionalHandshake(final TestVector testVector, final NoiseHandshakePair handshakePair) throws AEADBadTagException, InvalidKeySpecException {
     @Nullable NoiseTransport initiatorTransport = null;
     @Nullable NoiseTransport responderTransport = null;
 
