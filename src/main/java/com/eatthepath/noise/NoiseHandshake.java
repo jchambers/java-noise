@@ -629,6 +629,6 @@ public class NoiseHandshake {
     final CipherState writerCipherState = new CipherState(cipherState.getCipher());
     writerCipherState.setKey(derivedKeys[role == Role.INITIATOR ? 0 : 1]);
 
-    return new NoiseTransport(readerCipherState, writerCipherState);
+    return new NoiseTransportImpl(readerCipherState, writerCipherState);
   }
 }
