@@ -34,7 +34,7 @@ class NoiseHandshakeTest {
     }
   }
 
-  private record TestVector(
+  private record CacophonyTestVector(
       @JsonProperty("protocol_name")
       String protocolName,
 
@@ -134,7 +134,7 @@ class NoiseHandshakeTest {
 
   @ParameterizedTest
   @MethodSource
-  void completeHandshake(final TestVector testVector) throws InvalidKeySpecException, AEADBadTagException {
+  void cacophonyTests(final CacophonyTestVector testVector) throws InvalidKeySpecException, AEADBadTagException {
     final NoiseHandshakePair handshakePair = buildHandshakePair(testVector);
 
     if (handshakePair.initiatorHandshake().isOneWayHandshake()) {
@@ -144,7 +144,7 @@ class NoiseHandshakeTest {
     }
   }
 
-  private void testOneWayHandshake(final TestVector testVector, final NoiseHandshakePair handshakePair)
+  private void testOneWayHandshake(final CacophonyTestVector testVector, final NoiseHandshakePair handshakePair)
       throws InvalidKeySpecException, AEADBadTagException {
 
     @Nullable NoiseTransportWriter transportWriter = null;
@@ -168,7 +168,7 @@ class NoiseHandshakeTest {
     }
   }
 
-  private void testBidirectionalHandshake(final TestVector testVector, final NoiseHandshakePair handshakePair) throws AEADBadTagException, InvalidKeySpecException {
+  private void testBidirectionalHandshake(final CacophonyTestVector testVector, final NoiseHandshakePair handshakePair) throws AEADBadTagException, InvalidKeySpecException {
     @Nullable NoiseTransport initiatorTransport = null;
     @Nullable NoiseTransport responderTransport = null;
 
@@ -205,8 +205,8 @@ class NoiseHandshakeTest {
     }
   }
 
-  private static Stream<Arguments> completeHandshake() throws IOException {
-    final InputStream testVectorInputStream = NoiseHandshakeTest.class.getResourceAsStream("test-vectors.json");
+  private static Stream<Arguments> cacophonyTests() throws IOException {
+    final InputStream testVectorInputStream = NoiseHandshakeTest.class.getResourceAsStream("cacophony-test-vectors.json");
 
     if (testVectorInputStream == null) {
       throw new IOException("Test vector file not found");
@@ -215,14 +215,14 @@ class NoiseHandshakeTest {
     final ObjectReader objectReader = new ObjectMapper()
         .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
         .reader()
-        .forType(TestVector.class);
+        .forType(CacophonyTestVector.class);
 
     return StreamSupport.stream(
             Spliterators.spliterator(objectReader.readValues(testVectorInputStream), 1,
                 Spliterator.IMMUTABLE | Spliterator.NONNULL | Spliterator.ORDERED),
             false)
         .map(entry -> {
-          if (entry instanceof TestVector testVector) {
+          if (entry instanceof CacophonyTestVector testVector) {
             return Arguments.of(Named.of(testVector.protocolName(), testVector));
           } else {
             throw new RuntimeException("Unexpected object in stream: " + entry.getClass().getName());
@@ -230,7 +230,7 @@ class NoiseHandshakeTest {
         });
   }
 
-  private static NoiseHandshakePair buildHandshakePair(final TestVector testVector) {
+  private static NoiseHandshakePair buildHandshakePair(final CacophonyTestVector testVector) {
     try {
       final NoiseHandshake initiatorHandshake;
       {
