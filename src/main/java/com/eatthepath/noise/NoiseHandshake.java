@@ -611,7 +611,7 @@ public class NoiseHandshake {
     }
   }
 
-  public NoiseTransport split() {
+  public NoiseTransport toTransport() {
     if (!isDone()) {
       throw new IllegalStateException("Handshake is not finished and expects to exchange more messages");
     }
@@ -619,6 +619,42 @@ public class NoiseHandshake {
     if (handshakePattern.isOneWayPattern()) {
       // TODO Explain
       throw new IllegalStateException();
+    }
+
+    return split();
+  }
+
+  public NoiseTransportReader toTransportReader() {
+    if (!handshakePattern.isOneWayPattern()) {
+      // TODO Explain
+      throw new IllegalStateException();
+    }
+
+    if (role != Role.INITIATOR) {
+      // TODO Explain
+      throw new IllegalStateException();
+    }
+
+    return split();
+  }
+
+  public NoiseTransportWriter toTransportWriter() {
+    if (!handshakePattern.isOneWayPattern()) {
+      // TODO Explain
+      throw new IllegalStateException();
+    }
+
+    if (role != Role.INITIATOR) {
+      // TODO Explain
+      throw new IllegalStateException();
+    }
+
+    return split();
+  }
+
+  private NoiseTransportImpl split() {
+    if (!isDone()) {
+      throw new IllegalStateException("Handshake is not finished and expects to exchange more messages");
     }
 
     final byte[][] derivedKeys = noiseHash.deriveKeys(chainingKey, EMPTY_BYTE_ARRAY, 2);

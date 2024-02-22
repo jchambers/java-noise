@@ -143,41 +143,32 @@ class NoiseHandshakeTest {
     for (int i = 0; i < testVector.messages().size(); i++) {
       final TestMessage testMessage = testVector.messages().get(i);
 
-      if (i % 2 == 0) {
-        // It's the initiator's turn to send a message to the responder
-        if (initiatorTransport != null) {
-          // This is a transport message, not a handshake message
-          assertArrayEquals(testMessage.ciphertext(), initiatorTransport.writeMessage(testMessage.payload()));
-          assertArrayEquals(testMessage.payload(), responderTransport.readMessage(testMessage.ciphertext()));
-        } else {
-          // We're still passing handshake messages back and forth
-          assertTrue(handshakePair.initiatorHandshake().isExpectingWrite());
-          assertTrue(handshakePair.responderHandshake().isExpectingRead());
+      final NoiseHandshake senderHandshake =
+          i % 2 == 0 ? handshakePair.initiatorHandshake() : handshakePair.responderHandshake();
 
-          assertArrayEquals(testMessage.ciphertext(), handshakePair.initiatorHandshake().writeMessage(testMessage.payload()));
-          assertArrayEquals(testMessage.payload(), handshakePair.responderHandshake().readMessage(testMessage.ciphertext()));
-        }
+      final NoiseHandshake receiverHandshake =
+          i % 2 == 0 ? handshakePair.responderHandshake() : handshakePair.initiatorHandshake();
+
+      @Nullable final NoiseTransport senderTransport = i % 2 == 0 ? initiatorTransport : responderTransport;
+      @Nullable final NoiseTransport receiverTransport = i % 2 == 0 ? responderTransport : initiatorTransport;
+
+      if (senderTransport != null && receiverTransport != null) {
+        // This is a transport message, not a handshake message
+        assertArrayEquals(testMessage.ciphertext(), senderTransport.writeMessage(testMessage.payload()));
+        assertArrayEquals(testMessage.payload(), receiverTransport.readMessage(testMessage.ciphertext()));
       } else {
-        // It's the responder's turn to send a message to the initiator
-        if (initiatorTransport != null) {
-          // This is a transport message, not a handshake message
-          assertArrayEquals(testMessage.ciphertext(), responderTransport.writeMessage(testMessage.payload()));
-          assertArrayEquals(testMessage.payload(), initiatorTransport.readMessage(testMessage.ciphertext()));
-        } else {
-          // We're still passing handshake messages back and forth
-          assertTrue(handshakePair.responderHandshake().isExpectingWrite());
-          assertTrue(handshakePair.initiatorHandshake().isExpectingRead());
+        assertTrue(senderHandshake.isExpectingWrite());
+        assertTrue(receiverHandshake.isExpectingRead());
 
-          assertArrayEquals(testMessage.ciphertext(), handshakePair.responderHandshake().writeMessage(testMessage.payload()));
-          assertArrayEquals(testMessage.payload(), handshakePair.initiatorHandshake().readMessage(testMessage.ciphertext()));
-        }
+        assertArrayEquals(testMessage.ciphertext(), senderHandshake.writeMessage(testMessage.payload()));
+        assertArrayEquals(testMessage.payload(), receiverHandshake.readMessage(testMessage.ciphertext()));
       }
 
       if (handshakePair.initiatorHandshake().isDone() && initiatorTransport == null) {
         assertTrue(handshakePair.initiatorHandshake().isDone());
 
-        initiatorTransport = handshakePair.initiatorHandshake().split();
-        responderTransport = handshakePair.responderHandshake().split();
+        initiatorTransport = handshakePair.initiatorHandshake().toTransport();
+        responderTransport = handshakePair.responderHandshake().toTransport();
       }
     }
   }
