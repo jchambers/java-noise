@@ -1,9 +1,7 @@
 package com.eatthepath.noise;
 
 import java.io.*;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -90,6 +88,61 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
     }
 
     return handshakePattern;
+  }
+
+  static String getFundamentalPatternName(final String fullPatternName) {
+    final int fundamentalPatternLength = Math.toIntExact(fullPatternName.chars()
+        .takeWhile(c -> c == 'N' || c == 'K' || c == 'X' || c == 'I' || c == '1')
+        .count());
+
+    if (fundamentalPatternLength == fullPatternName.length()) {
+      return fullPatternName;
+    } else if (fundamentalPatternLength > 0) {
+      return fullPatternName.substring(0, fundamentalPatternLength);
+    }
+
+    throw new IllegalArgumentException("Invalid Noise pattern name: " + fullPatternName);
+  }
+
+  static List<String> getModifiers(final String fullPatternName) {
+    final String fundamentalPatternName = getFundamentalPatternName(fullPatternName);
+
+    if (fullPatternName.length() == fundamentalPatternName.length()) {
+      return Collections.emptyList();
+    }
+
+    return Arrays.asList(fullPatternName.substring(fundamentalPatternName.length()).split("\\+"));
+  }
+
+  HandshakePattern withModifier(final String modifier) {
+    // TODO Disallow duplicate modifiers
+
+    final MessagePattern[] modifiedPreMessagePatterns;
+    final MessagePattern[] modifiedHandshakeMessagePatterns;
+
+    if ("fallback".equals(modifier)) {
+      // TODO Make sure first handshake message is eligible for fallback
+      modifiedPreMessagePatterns = new MessagePattern[preMessagePatterns().length + 1];
+      modifiedHandshakeMessagePatterns = new MessagePattern[handshakeMessagePatterns().length - 1];
+
+      System.arraycopy(preMessagePatterns(), 0, modifiedPreMessagePatterns, 0, preMessagePatterns().length);
+      modifiedPreMessagePatterns[modifiedPreMessagePatterns.length - 1] = handshakeMessagePatterns()[0];
+
+      System.arraycopy(handshakeMessagePatterns(), 1, modifiedHandshakeMessagePatterns, 0, handshakeMessagePatterns().length - 1);
+    } else {
+      throw new IllegalArgumentException("Unrecognized modifier: " + modifier);
+    }
+
+    final String modifiedName;
+
+    if (name().equals(getFundamentalPatternName(name()))) {
+      // Our current name doesn't have any modifiers, and so this is the first
+      modifiedName = name() + modifier;
+    } else {
+      modifiedName = name() + "+" + modifier;
+    }
+
+    return new HandshakePattern(modifiedName, modifiedPreMessagePatterns, modifiedHandshakeMessagePatterns);
   }
 
   public static HandshakePattern fromString(final String patternString) {
