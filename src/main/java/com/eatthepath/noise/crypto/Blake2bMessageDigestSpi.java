@@ -6,23 +6,31 @@ import java.nio.ByteOrder;
 import java.security.MessageDigestSpi;
 import java.util.Arrays;
 
-public class Blake2sMessageDigestSpi extends MessageDigestSpi {
+public class Blake2bMessageDigestSpi extends MessageDigestSpi {
 
   private final int hashLength;
 
   private final byte[] keyBlock;
   private final int keyLength;
 
-  private final int[] state = new int[8];
+  private final long[] state = new long[8];
   private long bytesHashed;
 
   private final byte[] block = new byte[BLOCK_SIZE];
   private int blockOffset;
 
-  private static final int BLOCK_SIZE = 64;
+  private static final int BLOCK_SIZE = 128;
 
-  private static final int[] IV =
-      new int[] { 0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19 };
+  private static final long[] IV = new long[]{
+      0x6a09e667f3bcc908L,
+      0xbb67ae8584caa73bL,
+      0x3c6ef372fe94f82bL,
+      0xa54ff53a5f1d36f1L,
+      0x510e527fade682d1L,
+      0x9b05688c2b3e6c1fL,
+      0x1f83d9abfb41bd6bL,
+      0x5be0cd19137e2179L
+  };
 
   private static final byte[][] SIGMA = new byte[][] {
       new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
@@ -34,20 +42,22 @@ public class Blake2sMessageDigestSpi extends MessageDigestSpi {
       new byte[] { 12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 8, 11 },
       new byte[] { 13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10 },
       new byte[] { 6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5 },
-      new byte[] { 10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0 }
+      new byte[] { 10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0 },
+      new byte[] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 },
+      new byte[] { 14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3 }
   };
 
-  public Blake2sMessageDigestSpi(final int hashLength) {
+  public Blake2bMessageDigestSpi(final int hashLength) {
     this(hashLength, null);
   }
 
-  public Blake2sMessageDigestSpi(final int hashLength, @Nullable final byte[] key) {
-    if (hashLength < 1 || hashLength > 32) {
-      throw new IllegalArgumentException("Hash length must be between 1 and 32 bytes");
+  public Blake2bMessageDigestSpi(final int hashLength, @Nullable final byte[] key) {
+    if (hashLength < 1 || hashLength > 64) {
+      throw new IllegalArgumentException("Hash length must be between 1 and 64 bytes");
     }
 
-    if (key != null && key.length > 32) {
-      throw new IllegalArgumentException("Keys may be at most 32 bytes");
+    if (key != null && key.length > 64) {
+      throw new IllegalArgumentException("Keys may be at most 64 bytes");
     }
 
     this.hashLength = hashLength;
@@ -68,7 +78,7 @@ public class Blake2sMessageDigestSpi extends MessageDigestSpi {
   @Override
   protected void engineReset() {
     System.arraycopy(IV, 0, state, 0, IV.length);
-    state[0] ^= 0x01010000 ^ (keyLength << 8) ^ hashLength;
+    state[0] ^= 0x01010000 ^ ((long) keyLength << 8) ^ hashLength;
 
     System.arraycopy(keyBlock, 0, block, 0, keyLength);
     Arrays.fill(block, keyLength, BLOCK_SIZE, (byte) 0);
@@ -140,8 +150,8 @@ public class Blake2sMessageDigestSpi extends MessageDigestSpi {
 
     final ByteBuffer hashBuffer = ByteBuffer.allocate(BLOCK_SIZE).order(ByteOrder.LITTLE_ENDIAN);
 
-    for (final int i : state) {
-      hashBuffer.putInt(i);
+    for (final long i : state) {
+      hashBuffer.putLong(i);
     }
 
     hashBuffer.flip();
@@ -152,29 +162,33 @@ public class Blake2sMessageDigestSpi extends MessageDigestSpi {
     return hash;
   }
 
-  private static void mix(final int[] v, final int a, final int b, final int c, final int d, final int x, final int y) {
+  private static void mix(final long[] v, final int a, final int b, final int c, final int d, final long x, final long y) {
     v[a] = v[a] + v[b] + x;
-    v[d] = Integer.rotateRight(v[d] ^ v[a], 16);
+    v[d] = Long.rotateRight(v[d] ^ v[a], 32);
     v[c] = v[c] + v[d];
-    v[b] = Integer.rotateRight(v[b] ^ v[c], 12);
+    v[b] = Long.rotateRight(v[b] ^ v[c], 24);
     v[a] = v[a] + v[b] + y;
-    v[d] = Integer.rotateRight(v[d] ^ v[a], 8);
+    v[d] = Long.rotateRight(v[d] ^ v[a], 16);
     v[c] = v[c] + v[d];
-    v[b] = Integer.rotateRight(v[b] ^ v[c], 7);
+    v[b] = Long.rotateRight(v[b] ^ v[c], 63);
   }
 
   private void compress(final byte[] bytes, final int offset, final boolean lastBlock) {
-    final int[] messageBlock = new int[16];
+    final long[] messageBlock = new long[16];
 
-    // Parse bytes as little-endian integers
+    // Parse bytes as little-endian longs
     for (int i = 0; i < 16; i++) {
-      messageBlock[i] = bytes[offset + (i * 4)] & 0xff |
-          (bytes[offset + (i * 4) + 1] & 0xff) << 8 |
-          (bytes[offset + (i * 4) + 2] & 0xff) << 16 |
-          (bytes[offset + (i * 4) + 3] & 0xff) << 24;
+      messageBlock[i] = (long) bytes[offset + (i * 8)] & 0xff |
+          (long) (bytes[offset + (i * 8) + 1] & 0xff) << 8 |
+          (long) (bytes[offset + (i * 8) + 2] & 0xff) << 16 |
+          (long) (bytes[offset + (i * 8) + 3] & 0xff) << 24 |
+          (long) (bytes[offset + (i * 8) + 4] & 0xff) << 32 |
+          (long) (bytes[offset + (i * 8) + 5] & 0xff) << 40 |
+          (long) (bytes[offset + (i * 8) + 6] & 0xff) << 48 |
+          (long) (bytes[offset + (i * 8) + 7] & 0xff) << 56;
     }
 
-    final int[] v = new int[16];
+    final long[] v = new long[16];
     System.arraycopy(state, 0, v, 0, state.length);
     System.arraycopy(IV, 0, v, 8, IV.length);
 
