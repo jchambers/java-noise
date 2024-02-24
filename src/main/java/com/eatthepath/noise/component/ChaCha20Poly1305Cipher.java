@@ -1,6 +1,5 @@
-package com.eatthepath.noise;
+package com.eatthepath.noise.component;
 
-import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;

@@ -1,7 +1,4 @@
-package com.eatthepath.noise;
-
-import com.eatthepath.noise.component.Blake2bNoiseHash;
-import com.eatthepath.noise.component.Blake2sNoiseHash;
+package com.eatthepath.noise.component;
 
 import java.security.NoSuchAlgorithmException;
 

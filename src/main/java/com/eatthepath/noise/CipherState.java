@@ -1,5 +1,7 @@
 package com.eatthepath.noise;
 
+import com.eatthepath.noise.component.NoiseCipher;
+
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.crypto.AEADBadTagException;
@@ -8,7 +10,7 @@ import java.nio.ByteBuffer;
 import java.security.Key;
 
 @NotThreadSafe
-public class CipherState {
+class CipherState {
 
   private Key key;
   private long nonce;

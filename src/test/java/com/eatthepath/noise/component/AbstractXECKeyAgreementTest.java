@@ -1,5 +1,6 @@
-package com.eatthepath.noise;
+package com.eatthepath.noise.component;
 
+import com.eatthepath.noise.component.AbstractXECKeyAgreement;
 import org.junit.jupiter.api.Test;
 
 import java.security.InvalidKeyException;

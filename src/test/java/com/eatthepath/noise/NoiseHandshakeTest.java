@@ -1,5 +1,7 @@
 package com.eatthepath.noise;
 
+import com.eatthepath.noise.component.DefaultProtocolNameResolver;
+import com.eatthepath.noise.component.NoiseKeyAgreement;
 import com.eatthepath.noise.util.HexDeserializer;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.DeserializationFeature;

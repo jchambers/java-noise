@@ -1,4 +1,4 @@
-package com.eatthepath.noise;
+package com.eatthepath.noise.component;
 
 import org.opentest4j.TestAbortedException;
 
@@ -6,8 +6,6 @@ import javax.crypto.spec.SecretKeySpec;
 import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.ThreadLocalRandom;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 class ChaCha20Poly1305CipherTest extends AbstractNoiseCipherTest {
 

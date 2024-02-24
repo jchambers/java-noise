@@ -1,4 +1,4 @@
-package com.eatthepath.noise;
+package com.eatthepath.noise.component;
 
 import javax.annotation.concurrent.ThreadSafe;
 import javax.crypto.Cipher;

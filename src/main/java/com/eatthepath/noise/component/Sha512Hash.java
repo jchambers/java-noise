@@ -1,10 +1,10 @@
-package com.eatthepath.noise;
+package com.eatthepath.noise.component;
 
 import javax.crypto.Mac;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-public class Sha512Hash implements NoiseHash {
+class Sha512Hash implements NoiseHash {
 
   private static final String MESSAGE_DIGEST_ALGORITHM = "SHA-512";
   private static final String HMAC_ALGORITHM = "HmacSHA512";

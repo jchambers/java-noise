@@ -1,11 +1,8 @@
-package com.eatthepath.noise;
+package com.eatthepath.noise.component;
 
 import javax.crypto.spec.SecretKeySpec;
 import java.security.Key;
-import java.security.SecureRandom;
 import java.util.concurrent.ThreadLocalRandom;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 class AesGcmCipherTest extends AbstractNoiseCipherTest {
 

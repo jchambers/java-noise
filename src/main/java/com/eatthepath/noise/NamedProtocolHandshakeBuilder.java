@@ -1,5 +1,7 @@
 package com.eatthepath.noise;
 
+import com.eatthepath.noise.component.*;
+
 import javax.annotation.Nullable;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;

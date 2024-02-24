@@ -1,8 +1,7 @@
-package com.eatthepath.noise;
+package com.eatthepath.noise.component;
 
 import javax.crypto.KeyAgreement;
 import java.security.*;
-import java.security.spec.X509EncodedKeySpec;
 import java.util.HexFormat;
 
 class X25519KeyAgreement extends AbstractXECKeyAgreement {

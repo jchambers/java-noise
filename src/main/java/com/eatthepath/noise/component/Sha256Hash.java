@@ -1,10 +1,10 @@
-package com.eatthepath.noise;
+package com.eatthepath.noise.component;
 
 import javax.crypto.Mac;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-public class Sha256Hash implements NoiseHash {
+class Sha256Hash implements NoiseHash {
 
   @Override
   public String getName() {

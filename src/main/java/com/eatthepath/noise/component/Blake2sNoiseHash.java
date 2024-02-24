@@ -1,13 +1,12 @@
 package com.eatthepath.noise.component;
 
-import com.eatthepath.noise.NoiseHash;
 import com.eatthepath.noise.crypto.Blake2s256MessageDigest;
 import com.eatthepath.noise.crypto.HmacBlake2s256Mac;
 
 import javax.crypto.Mac;
 import java.security.MessageDigest;
 
-public class Blake2sNoiseHash implements NoiseHash {
+class Blake2sNoiseHash implements NoiseHash {
 
   private final Blake2s256MessageDigest messageDigest;
   private final HmacBlake2s256Mac hmac;
