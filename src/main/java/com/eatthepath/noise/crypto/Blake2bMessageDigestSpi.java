@@ -6,7 +6,7 @@ import java.nio.ByteOrder;
 import java.security.MessageDigestSpi;
 import java.util.Arrays;
 
-public class Blake2bMessageDigestSpi extends MessageDigestSpi {
+class Blake2bMessageDigestSpi extends MessageDigestSpi {
 
   private final int hashLength;
 

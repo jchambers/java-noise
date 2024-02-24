@@ -1,5 +1,8 @@
 package com.eatthepath.noise;
 
+import com.eatthepath.noise.component.Blake2bNoiseHash;
+import com.eatthepath.noise.component.Blake2sNoiseHash;
+
 import java.security.NoSuchAlgorithmException;
 
 public class DefaultProtocolNameResolver implements ProtocolNameResolver {
@@ -27,6 +30,8 @@ public class DefaultProtocolNameResolver implements ProtocolNameResolver {
     return switch (name) {
       case "SHA256" -> new Sha256Hash();
       case "SHA512" -> new Sha512Hash();
+      case "BLAKE2s" -> new Blake2sNoiseHash();
+      case "BLAKE2b" -> new Blake2bNoiseHash();
       default -> throw new NoSuchAlgorithmException("Unrecognized hash name: " + name);
     };
   }
