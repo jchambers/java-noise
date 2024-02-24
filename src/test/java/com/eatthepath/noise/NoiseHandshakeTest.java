@@ -1,8 +1,10 @@
 package com.eatthepath.noise;
 
+import com.eatthepath.noise.util.HexDeserializer;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import org.junit.jupiter.api.Named;
 import org.junit.jupiter.api.Test;
@@ -18,21 +20,15 @@ import java.io.InputStream;
 import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.NamedParameterSpec;
-import java.util.*;
+import java.util.List;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class NoiseHandshakeTest {
-
-  private static class HexDeserializer extends JsonDeserializer<byte[]> {
-
-    @Override
-    public byte[] deserialize(final JsonParser jsonParser, final DeserializationContext deserializationContext) throws IOException {
-      return HexFormat.of().parseHex(jsonParser.getValueAsString());
-    }
-  }
 
   private record CacophonyTestVector(
       @JsonProperty("protocol_name")
