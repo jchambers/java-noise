@@ -49,6 +49,7 @@ abstract class HmacSpi extends MacSpi {
       messageDigest.update(encodedKeyBytes);
 
       try {
+        // Note that calling `digest` also resets the message digest
         messageDigest.digest(keyBytes, 0, blockLength);
       } catch (final DigestException e) {
         // This should never happen for a key and buffer we control
@@ -83,6 +84,10 @@ abstract class HmacSpi extends MacSpi {
       messageDigest.update((byte) (b ^ OUTER_PADDING_BYTE));
     }
 
-    return messageDigest.digest(innerHash);
+    try {
+      return messageDigest.digest(innerHash);
+    } finally {
+      engineReset();
+    }
   }
 }

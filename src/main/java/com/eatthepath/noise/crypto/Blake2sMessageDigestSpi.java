@@ -154,7 +154,11 @@ class Blake2sMessageDigestSpi extends MessageDigestSpi {
     final byte[] hash = new byte[hashLength];
     hashBuffer.get(hash);
 
-    return hash;
+    try {
+      return hash;
+    } finally {
+      engineReset();
+    }
   }
 
   private static void mix(final int[] v, final int a, final int b, final int c, final int d, final int x, final int y) {
