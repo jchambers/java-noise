@@ -4,12 +4,12 @@ import javax.crypto.Mac;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-class Sha512Hash implements NoiseHash {
+class Sha512NoiseHash implements NoiseHash {
 
   private static final String MESSAGE_DIGEST_ALGORITHM = "SHA-512";
   private static final String HMAC_ALGORITHM = "HmacSHA512";
 
-  public Sha512Hash() throws NoSuchAlgorithmException {
+  public Sha512NoiseHash() throws NoSuchAlgorithmException {
     // Fail fast: check once if SHA-512 is supported so we don't have to worry about exceptions later
     MessageDigest.getInstance(MESSAGE_DIGEST_ALGORITHM);
     Mac.getInstance(HMAC_ALGORITHM);

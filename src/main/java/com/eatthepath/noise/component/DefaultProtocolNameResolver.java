@@ -25,8 +25,8 @@ public class DefaultProtocolNameResolver implements ProtocolNameResolver {
   @Override
   public NoiseHash getHash(final String name) throws NoSuchAlgorithmException {
     return switch (name) {
-      case "SHA256" -> new Sha256Hash();
-      case "SHA512" -> new Sha512Hash();
+      case "SHA256" -> new Sha256NoiseHash();
+      case "SHA512" -> new Sha512NoiseHash();
       case "BLAKE2s" -> new Blake2sNoiseHash();
       case "BLAKE2b" -> new Blake2bNoiseHash();
       default -> throw new NoSuchAlgorithmException("Unrecognized hash name: " + name);

@@ -4,7 +4,7 @@ import javax.crypto.Mac;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
-class Sha256Hash implements NoiseHash {
+class Sha256NoiseHash implements NoiseHash {
 
   @Override
   public String getName() {
