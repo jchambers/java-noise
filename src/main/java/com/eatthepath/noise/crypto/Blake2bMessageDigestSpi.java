@@ -76,6 +76,11 @@ public class Blake2bMessageDigestSpi extends MessageDigestSpi {
   }
 
   @Override
+  protected int engineGetDigestLength() {
+    return hashLength;
+  }
+
+  @Override
   protected void engineReset() {
     System.arraycopy(IV, 0, state, 0, IV.length);
     state[0] ^= 0x01010000 ^ ((long) keyLength << 8) ^ hashLength;
