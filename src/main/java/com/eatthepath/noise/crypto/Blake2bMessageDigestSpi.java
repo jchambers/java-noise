@@ -201,8 +201,13 @@ class Blake2bMessageDigestSpi extends MessageDigestSpi {
     System.arraycopy(state, 0, v, 0, state.length);
     System.arraycopy(IV, 0, v, 8, IV.length);
 
-    v[12] ^= (int) bytesHashed;
-    v[13] ^= (int) (bytesHashed >> 32);
+    // Note: technically, this isn't right. BLAKE2b is supposed to support streams of up to 2^128 bytes, but this only
+    // goes up to 2^64. If we're hashing 1GiB/sec, though, it's still going to take nearly 300 years of processing a
+    // single stream before this becomes a problem. If anybody actually runs into this, please file a bug report so we
+    // can coordinate delivery of your trophy.
+    //
+    // Also, this is (for now) intended for use with Noise, which limits message sizes to 64KiB.
+    v[12] ^= bytesHashed;
 
     if (lastBlock) {
       v[14] = ~v[14];
