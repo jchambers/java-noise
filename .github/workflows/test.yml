@@ -1,0 +1,24 @@
+name: Build/test
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        distribution: ['adopt', 'temurin']
+        java: [17, 21]
+      fail-fast: false
+    name: JDK ${{ matrix.java }} (${{ matrix.distribution }})
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up JDK
+      uses: actions/setup-java@v2
+      with:
+        distribution: ${{ matrix.distribution }}
+        java-version: ${{ matrix.java }}
+        cache: 'maven'
+    - name: Test with Maven
+      run: mvn verify -B --file pom.xml
