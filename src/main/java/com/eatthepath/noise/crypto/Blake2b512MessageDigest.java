@@ -13,6 +13,11 @@ public class Blake2b512MessageDigest extends MessageDigest {
   }
 
   @Override
+  protected int engineGetDigestLength() {
+    return messageDigestSpi.engineGetDigestLength();
+  }
+
+  @Override
   protected void engineUpdate(final byte input) {
     messageDigestSpi.engineUpdate(input);
   }

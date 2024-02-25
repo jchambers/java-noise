@@ -13,6 +13,11 @@ public class Blake2s256MessageDigest extends MessageDigest {
   }
 
   @Override
+  protected int engineGetDigestLength() {
+    return messageDigestSpi.engineGetDigestLength();
+  }
+
+  @Override
   protected void engineUpdate(final byte input) {
     messageDigestSpi.engineUpdate(input);
   }
