@@ -220,6 +220,10 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
         .allMatch(messagePattern -> messagePattern.sender() == NoiseHandshake.Role.INITIATOR);
   }
 
+  public boolean isFallbackPattern() {
+    return getModifiers(name()).contains("fallback");
+  }
+
   public boolean requiresLocalStaticKeyPair(final NoiseHandshake.Role role) {
     // The given role needs a local static key pair if any pre-handshake message or handshake message involves that role
     // sending a static key to the other party
@@ -227,6 +231,15 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
         .filter(messagePattern -> messagePattern.sender() == role)
         .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
         .anyMatch(token -> token == Token.S);
+  }
+
+  public boolean requiresRemoteEphemeralPublicKey(final NoiseHandshake.Role role) {
+    // The given role needs a remote static key pair if the handshake pattern involves that role receiving an ephemeral
+    // key from the other party in a pre-handshake message
+    return Arrays.stream(preMessagePatterns())
+        .filter(messagePattern -> messagePattern.sender() != role)
+        .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
+        .anyMatch(token -> token == Token.E);
   }
 
   public boolean requiresRemoteStaticPublicKey(final NoiseHandshake.Role role) {

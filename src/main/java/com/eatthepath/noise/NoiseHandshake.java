@@ -29,6 +29,8 @@ public class NoiseHandshake {
   private final byte[] chainingKey;
   private final byte[] hash;
 
+  private final byte[] prologue;
+
   @Nullable
   private KeyPair localEphemeralKeyPair;
 
@@ -107,6 +109,8 @@ public class NoiseHandshake {
         throw new IllegalArgumentException(handshakePattern.name() + " handshake pattern does not allow pre-shared keys");
       }
     }
+
+    this.prologue = prologue;
 
     // TODO Validate key compatibility
     this.localStaticKeyPair = localStaticKeyPair;
@@ -620,6 +624,62 @@ public class NoiseHandshake {
     }
   }
 
+  public NoiseHandshake fallbackTo(final String handshakePatternName) throws NoSuchPatternException {
+    return fallbackTo(handshakePatternName, null);
+  }
+
+  public NoiseHandshake fallbackTo(final String handshakePatternName, @Nullable final List<byte[]> preSharedKeys) throws NoSuchPatternException {
+    final HandshakePattern fallbackPattern = HandshakePattern.getInstance(handshakePatternName);
+
+    @Nullable final KeyPair fallbackLocalStaticKeyPair;
+
+    if (fallbackPattern.requiresLocalStaticKeyPair(role)) {
+      if (localStaticKeyPair != null) {
+        fallbackLocalStaticKeyPair = localStaticKeyPair;
+      } else {
+        throw new IllegalArgumentException("Fallback pattern requires a local static key pair, but none is available");
+      }
+    } else {
+      fallbackLocalStaticKeyPair = null;
+    }
+
+    @Nullable final PublicKey fallbackRemoteStaticPublicKey;
+
+    if (fallbackPattern.requiresRemoteStaticPublicKey(role)) {
+      if (remoteStaticPublicKey != null) {
+        fallbackRemoteStaticPublicKey = remoteStaticPublicKey;
+      } else {
+        throw new IllegalArgumentException("Fallback pattern requires a remote static public key, but none is available");
+      }
+    } else {
+      fallbackRemoteStaticPublicKey = null;
+    }
+
+    @Nullable final PublicKey fallbackRemoteEphemeralPublicKey;
+
+    if (fallbackPattern.requiresRemoteEphemeralPublicKey(role)) {
+      if (remoteEphemeralPublicKey != null) {
+        fallbackRemoteEphemeralPublicKey = remoteEphemeralPublicKey;
+      } else {
+        throw new IllegalArgumentException("Fallback pattern requires a remote ephemeral public key, but none is available");
+      }
+    } else {
+      fallbackRemoteEphemeralPublicKey = null;
+    }
+
+    return new NoiseHandshake(role,
+        fallbackPattern,
+        keyAgreement,
+        cipherState.getCipher(),
+        noiseHash,
+        prologue,
+        fallbackLocalStaticKeyPair,
+        localEphemeralKeyPair,
+        fallbackRemoteStaticPublicKey,
+        fallbackRemoteEphemeralPublicKey,
+        preSharedKeys);
+  }
+
   public NoiseTransport toTransport() {
     if (!isDone()) {
       throw new IllegalStateException("Handshake is not finished and expects to exchange more messages");
@@ -668,11 +728,15 @@ public class NoiseHandshake {
 
     final byte[][] derivedKeys = noiseHash.deriveKeys(chainingKey, EMPTY_BYTE_ARRAY, 2);
 
+    // We switch to "Bob-initiated" mode in fallback patterns
+    final boolean isEffectiveInitiator =
+        handshakePattern.isFallbackPattern() ? role == Role.RESPONDER : role == Role.INITIATOR;
+
     final CipherState readerCipherState = new CipherState(cipherState.getCipher());
-    readerCipherState.setKey(derivedKeys[role == Role.INITIATOR ? 1 : 0]);
+    readerCipherState.setKey(derivedKeys[isEffectiveInitiator ? 1 : 0]);
 
     final CipherState writerCipherState = new CipherState(cipherState.getCipher());
-    writerCipherState.setKey(derivedKeys[role == Role.INITIATOR ? 0 : 1]);
+    writerCipherState.setKey(derivedKeys[isEffectiveInitiator ? 0 : 1]);
 
     return new NoiseTransportImpl(readerCipherState, writerCipherState);
   }
