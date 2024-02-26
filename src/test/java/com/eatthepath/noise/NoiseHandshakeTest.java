@@ -1,6 +1,6 @@
 package com.eatthepath.noise;
 
-import com.eatthepath.noise.component.DefaultProtocolNameResolver;
+import com.eatthepath.noise.component.DefaultComponentNameResolver;
 import com.eatthepath.noise.component.NoiseKeyAgreement;
 import com.eatthepath.noise.util.HexDeserializer;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -520,7 +520,7 @@ class NoiseHandshakeTest {
   private static PublicKey getXECPublicKey(final byte[] publicKeyBytes, final String noiseProtocolName) {
     try {
       final String keyAgreementName = noiseProtocolName.split("_")[2];
-      final NoiseKeyAgreement noiseKeyAgreement = new DefaultProtocolNameResolver().getKeyAgreement(keyAgreementName);
+      final NoiseKeyAgreement noiseKeyAgreement = new DefaultComponentNameResolver().getKeyAgreement(keyAgreementName);
 
       return noiseKeyAgreement.deserializePublicKey(publicKeyBytes);
     } catch (final NoSuchAlgorithmException | InvalidKeySpecException e) {

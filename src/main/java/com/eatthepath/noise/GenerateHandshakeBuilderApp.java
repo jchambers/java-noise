@@ -3,7 +3,9 @@ package com.eatthepath.noise;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -17,52 +19,14 @@ class GenerateHandshakeBuilderApp {
       "IKpsk2", "IXpsk2"
   };
 
-  private static final String NO_KEY_INITIALIZER_TEMPLATE = """
-      public static NoiseHandshakeBuilder for%METHOD_SAFE_PATTERN_NAME%%METHOD_SAFE_ROLE_NAME%() {
+  private static final String INITIALIZER_TEMPLATE = """
+      public static NoiseHandshakeBuilder for%METHOD_SAFE_PATTERN_NAME%%METHOD_SAFE_ROLE_NAME%(%ARGUMENT_LIST%) {
         try {
           return new NoiseHandshakeBuilder(NoiseHandshake.Role.%ROLE_ENUM_KEY%,
               HandshakePattern.getInstance("%PATTERN_NAME%"),
-              null,
-              null);
-        } catch (final NoSuchPatternException e) {
-          throw new AssertionError("Statically-generated handshake pattern not found", e);
-        }
-      }
-      """;
-
-  private static final String LOCAL_STATIC_KEY_INITIALIZER_TEMPLATE = """
-      public static NoiseHandshakeBuilder for%METHOD_SAFE_PATTERN_NAME%%METHOD_SAFE_ROLE_NAME%(final KeyPair localStaticKeyPair) {
-        try {
-          return new NoiseHandshakeBuilder(NoiseHandshake.Role.%ROLE_ENUM_KEY%,
-              HandshakePattern.getInstance("%PATTERN_NAME%"),
-              localStaticKeyPair,
-              null);
-        } catch (final NoSuchPatternException e) {
-          throw new AssertionError("Statically-generated handshake pattern not found", e);
-        }
-      }
-      """;
-
-  private static final String REMOTE_STATIC_KEY_INITIALIZER_TEMPLATE = """
-      public static NoiseHandshakeBuilder for%METHOD_SAFE_PATTERN_NAME%%METHOD_SAFE_ROLE_NAME%(final PublicKey remoteStaticPublicKey) {
-        try {
-          return new NoiseHandshakeBuilder(NoiseHandshake.Role.%ROLE_ENUM_KEY%,
-              HandshakePattern.getInstance("%PATTERN_NAME%"),
-              null,
-              remoteStaticPublicKey);
-        } catch (final NoSuchPatternException e) {
-          throw new AssertionError("Statically-generated handshake pattern not found", e);
-        }
-      }
-      """;
-
-  private static final String LOCAL_AND_REMOTE_STATIC_KEY_INITIALIZER_TEMPLATE = """
-      public static NoiseHandshakeBuilder for%METHOD_SAFE_PATTERN_NAME%%METHOD_SAFE_ROLE_NAME%(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey) {
-        try {
-          return new NoiseHandshakeBuilder(NoiseHandshake.Role.%ROLE_ENUM_KEY%,
-              HandshakePattern.getInstance("%PATTERN_NAME%"),
-              localStaticKeyPair,
-              remoteStaticPublicKey);
+              %LOCAL_STATIC_KEY_PAIR_ARGUMENT%,
+              %REMOTE_STATIC_PUBLIC_KEY_ARGUMENT%,
+              %PRE_SHARED_KEY_ARGUMENT%);
         } catch (final NoSuchPatternException e) {
           throw new AssertionError("Statically-generated handshake pattern not found", e);
         }
@@ -83,27 +47,10 @@ class GenerateHandshakeBuilderApp {
           }
         })
         .map(handshakePattern -> Arrays.stream(NoiseHandshake.Role.values())
-            .map(role -> {
-              final boolean needsLocalStaticKeyPair = handshakePattern.requiresLocalStaticKeyPair(role);
-              final boolean needsRemoteStaticPublicKey = handshakePattern.requiresRemoteStaticPublicKey(role);
-
-              final String template;
-
-              if (needsLocalStaticKeyPair && needsRemoteStaticPublicKey) {
-                template = LOCAL_AND_REMOTE_STATIC_KEY_INITIALIZER_TEMPLATE;
-              } else if (needsLocalStaticKeyPair) {
-                template = LOCAL_STATIC_KEY_INITIALIZER_TEMPLATE;
-              } else if (needsRemoteStaticPublicKey) {
-                template = REMOTE_STATIC_KEY_INITIALIZER_TEMPLATE;
-              } else {
-                template = NO_KEY_INITIALIZER_TEMPLATE;
-              }
-
-              return renderTemplate(template, buildTemplateModel(handshakePattern, role))
-                  .lines()
-                  .map(line -> "  " + line)
-                  .collect(Collectors.joining("\n"));
-            })
+            .map(role -> renderTemplate(buildTemplateModel(handshakePattern, role))
+                .lines()
+                .map(line -> "  " + line)
+                .collect(Collectors.joining("\n")))
             .collect(Collectors.joining("\n\n")))
         .collect(Collectors.joining("\n\n"));
 
@@ -132,16 +79,48 @@ class GenerateHandshakeBuilderApp {
             })
             .collect(Collectors.joining());
 
+    final List<String> arguments = new ArrayList<>(3);
+
+    final String localStaticKeyPairArgument;
+
+    if (handshakePattern.requiresLocalStaticKeyPair(role)) {
+      arguments.add("final KeyPair localStaticKeyPair");
+      localStaticKeyPairArgument = "localStaticKeyPair";
+    } else {
+      localStaticKeyPairArgument = "null";
+    }
+
+    final String remoteStaticPublicKeyArgument;
+
+    if (handshakePattern.requiresRemoteStaticPublicKey(role)) {
+      arguments.add("final PublicKey remoteStaticPublicKey");
+      remoteStaticPublicKeyArgument = "remoteStaticPublicKey";
+    } else {
+      remoteStaticPublicKeyArgument = "null";
+    }
+
+    final String preSharedKeyArgument;
+
+    if (handshakePattern.getRequiredPreSharedKeyCount() > 0) {
+      arguments.add("final byte[] preSharedKey");
+      preSharedKeyArgument = "preSharedKey";
+    } else {
+      preSharedKeyArgument = "null";
+    }
+
     return Map.of(
         "%METHOD_SAFE_PATTERN_NAME%", methodSafePatternName,
         "%METHOD_SAFE_ROLE_NAME%", methodSafeRoleName,
         "%ROLE_ENUM_KEY%", role.name(),
-        "%PATTERN_NAME%", handshakePattern.name()
-    );
+        "%PATTERN_NAME%", handshakePattern.name(),
+        "%ARGUMENT_LIST%", String.join(", ", arguments),
+        "%LOCAL_STATIC_KEY_PAIR_ARGUMENT%", localStaticKeyPairArgument,
+        "%REMOTE_STATIC_PUBLIC_KEY_ARGUMENT%", remoteStaticPublicKeyArgument,
+        "%PRE_SHARED_KEY_ARGUMENT%", preSharedKeyArgument);
   }
 
-  private static String renderTemplate(final String template, final Map<String, String> model) {
-    String renderedTemplate = template;
+  private static String renderTemplate(final Map<String, String> model) {
+    String renderedTemplate = INITIALIZER_TEMPLATE;
 
     for (final Map.Entry<String, String> entry : model.entrySet()) {
       renderedTemplate = renderedTemplate.replace(entry.getKey(), entry.getValue());

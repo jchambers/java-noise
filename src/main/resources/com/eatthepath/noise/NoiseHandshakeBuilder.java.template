@@ -1,22 +1,25 @@
 package com.eatthepath.noise;
 
+import com.eatthepath.noise.component.*;
+
 import javax.annotation.Nullable;
 import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
+import java.util.List;
 import java.util.Objects;
 
 @SuppressWarnings("unused")
 public class NoiseHandshakeBuilder {
 
   private final NoiseHandshake.Role role;
-
   private final HandshakePattern handshakePattern;
+
+  private ComponentNameResolver componentNameResolver = new DefaultComponentNameResolver();
 
   @Nullable private final KeyPair localStaticKeyPair;
   @Nullable private final PublicKey remoteStaticPublicKey;
-
-  @Nullable private KeyPair localEphemeralKeyPair;
-  @Nullable private PublicKey remoteEphemeralPublicKey;
+  @Nullable private final byte[] preSharedKey;
 
   @Nullable private byte[] prologue;
 
@@ -27,21 +30,23 @@ public class NoiseHandshakeBuilder {
   private NoiseHandshakeBuilder(final NoiseHandshake.Role role,
                                 final HandshakePattern handshakePattern,
                                 @Nullable final KeyPair localStaticKeyPair,
-                                @Nullable final PublicKey remoteStaticPublicKey) {
+                                @Nullable final PublicKey remoteStaticPublicKey,
+                                @Nullable final byte[] preSharedKey) {
 
     this.role = role;
     this.handshakePattern = handshakePattern;
     this.localStaticKeyPair = localStaticKeyPair;
     this.remoteStaticPublicKey = remoteStaticPublicKey;
+
+    if (preSharedKey != null && preSharedKey.length != 32) {
+      throw new IllegalArgumentException("Pre-shared keys must be exactly 32 bytes");
+    }
+
+    this.preSharedKey = preSharedKey;
   }
 
-  public NoiseHandshakeBuilder setLocalEphemeralKeyPair(@Nullable final KeyPair localEphemeralKeyPair) {
-    this.localEphemeralKeyPair = localEphemeralKeyPair;
-    return this;
-  }
-
-  public NoiseHandshakeBuilder setRemoteEphemeralPublicKey(@Nullable final PublicKey remoteEphemeralPublicKey) {
-    this.remoteEphemeralPublicKey = remoteEphemeralPublicKey;
+  public NoiseHandshakeBuilder setComponentNameResolver(final ComponentNameResolver componentNameResolver) {
+    this.componentNameResolver = Objects.requireNonNull(componentNameResolver, "Component name resolver must not be null");
     return this;
   }
 
@@ -50,18 +55,51 @@ public class NoiseHandshakeBuilder {
     return this;
   }
 
+  public NoiseHandshakeBuilder setComponentsFromProtocolName(final String protocolName) throws NoSuchAlgorithmException {
+    final String expectedPrefix = "Noise_" + handshakePattern.name() + "_";
+
+    if (!protocolName.startsWith(expectedPrefix)) {
+      throw new IllegalArgumentException("Protocol name must be a Noise protocol name beginning with \"" + expectedPrefix + "\"");
+    }
+
+    final String[] componentNames = protocolName.substring(expectedPrefix.length()).split("_");
+
+    if (componentNames.length != 3) {
+      throw new IllegalArgumentException("Protocol name must be a valid Noise protocol name");
+    }
+
+    return setKeyAgreement(componentNames[0])
+        .setCipher(componentNames[1])
+        .setHash(componentNames[2]);
+  }
+
   public NoiseHandshakeBuilder setCipher(final NoiseCipher cipher) {
     this.cipher = Objects.requireNonNull(cipher, "Cipher must not be null");
     return this;
   }
 
+  public NoiseHandshakeBuilder setCipher(final String cipherName) throws NoSuchAlgorithmException {
+    this.cipher = componentNameResolver.getCipher(Objects.requireNonNull(cipherName, "Cipher must not be null"));
+    return this;
+  }
+
   public NoiseHandshakeBuilder setHash(final NoiseHash hash) {
-    this.hash = Objects.requireNonNull(hash, "Hash algorithm must not be null");
+    this.hash = Objects.requireNonNull(hash, "Hash must not be null");
+    return this;
+  }
+
+  public NoiseHandshakeBuilder setHash(final String hashName) throws NoSuchAlgorithmException {
+    this.hash = componentNameResolver.getHash(Objects.requireNonNull(hashName, "Hash must not be null"));
     return this;
   }
 
   public NoiseHandshakeBuilder setKeyAgreement(final NoiseKeyAgreement keyAgreement) {
     this.keyAgreement = Objects.requireNonNull(keyAgreement, "Key agreement algorithm must not be null");
+    return this;
+  }
+
+  public NoiseHandshakeBuilder setKeyAgreement(final String keyAgreementName) throws NoSuchAlgorithmException {
+    this.keyAgreement = componentNameResolver.getKeyAgreement(Objects.requireNonNull(keyAgreementName, "Key agreement algorithm must not be null"));
     return this;
   }
 
@@ -87,9 +125,10 @@ public class NoiseHandshakeBuilder {
         hash,
         prologue,
         localStaticKeyPair,
-        localEphemeralKeyPair,
+        null,
         remoteStaticPublicKey,
-        remoteEphemeralPublicKey);
+        null,
+        preSharedKey != null ? List.of(preSharedKey) : null);
   }
 
   // The following initializer methods are auto-generated by GenerateHandshakeBuilderApp

@@ -2,7 +2,7 @@ package com.eatthepath.noise.component;
 
 import java.security.NoSuchAlgorithmException;
 
-public interface ProtocolNameResolver {
+public interface ComponentNameResolver {
 
   NoiseKeyAgreement getKeyAgreement(String name) throws NoSuchAlgorithmException;
 

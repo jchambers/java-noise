@@ -1,26 +1,25 @@
 package com.eatthepath.noise;
 
-import com.eatthepath.noise.component.NoiseCipher;
-import com.eatthepath.noise.component.NoiseHash;
-import com.eatthepath.noise.component.NoiseKeyAgreement;
+import com.eatthepath.noise.component.*;
 
 import javax.annotation.Nullable;
 import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
+import java.util.List;
 import java.util.Objects;
 
 @SuppressWarnings("unused")
 public class NoiseHandshakeBuilder {
 
   private final NoiseHandshake.Role role;
-
   private final HandshakePattern handshakePattern;
+
+  private ComponentNameResolver componentNameResolver = new DefaultComponentNameResolver();
 
   @Nullable private final KeyPair localStaticKeyPair;
   @Nullable private final PublicKey remoteStaticPublicKey;
-
-  @Nullable private KeyPair localEphemeralKeyPair;
-  @Nullable private PublicKey remoteEphemeralPublicKey;
+  @Nullable private final byte[] preSharedKey;
 
   @Nullable private byte[] prologue;
 
@@ -31,21 +30,23 @@ public class NoiseHandshakeBuilder {
   private NoiseHandshakeBuilder(final NoiseHandshake.Role role,
                                 final HandshakePattern handshakePattern,
                                 @Nullable final KeyPair localStaticKeyPair,
-                                @Nullable final PublicKey remoteStaticPublicKey) {
+                                @Nullable final PublicKey remoteStaticPublicKey,
+                                @Nullable final byte[] preSharedKey) {
 
     this.role = role;
     this.handshakePattern = handshakePattern;
     this.localStaticKeyPair = localStaticKeyPair;
     this.remoteStaticPublicKey = remoteStaticPublicKey;
+
+    if (preSharedKey != null && preSharedKey.length != 32) {
+      throw new IllegalArgumentException("Pre-shared keys must be exactly 32 bytes");
+    }
+
+    this.preSharedKey = preSharedKey;
   }
 
-  public NoiseHandshakeBuilder setLocalEphemeralKeyPair(@Nullable final KeyPair localEphemeralKeyPair) {
-    this.localEphemeralKeyPair = localEphemeralKeyPair;
-    return this;
-  }
-
-  public NoiseHandshakeBuilder setRemoteEphemeralPublicKey(@Nullable final PublicKey remoteEphemeralPublicKey) {
-    this.remoteEphemeralPublicKey = remoteEphemeralPublicKey;
+  public NoiseHandshakeBuilder setComponentNameResolver(final ComponentNameResolver componentNameResolver) {
+    this.componentNameResolver = Objects.requireNonNull(componentNameResolver, "Component name resolver must not be null");
     return this;
   }
 
@@ -54,18 +55,51 @@ public class NoiseHandshakeBuilder {
     return this;
   }
 
+  public NoiseHandshakeBuilder setComponentsFromProtocolName(final String protocolName) throws NoSuchAlgorithmException {
+    final String expectedPrefix = "Noise_" + handshakePattern.name() + "_";
+
+    if (!protocolName.startsWith(expectedPrefix)) {
+      throw new IllegalArgumentException("Protocol name must be a Noise protocol name beginning with \"" + expectedPrefix + "\"");
+    }
+
+    final String[] componentNames = protocolName.substring(expectedPrefix.length()).split("_");
+
+    if (componentNames.length != 3) {
+      throw new IllegalArgumentException("Protocol name must be a valid Noise protocol name");
+    }
+
+    return setKeyAgreement(componentNames[0])
+        .setCipher(componentNames[1])
+        .setHash(componentNames[2]);
+  }
+
   public NoiseHandshakeBuilder setCipher(final NoiseCipher cipher) {
     this.cipher = Objects.requireNonNull(cipher, "Cipher must not be null");
     return this;
   }
 
+  public NoiseHandshakeBuilder setCipher(final String cipherName) throws NoSuchAlgorithmException {
+    this.cipher = componentNameResolver.getCipher(Objects.requireNonNull(cipherName, "Cipher must not be null"));
+    return this;
+  }
+
   public NoiseHandshakeBuilder setHash(final NoiseHash hash) {
-    this.hash = Objects.requireNonNull(hash, "Hash algorithm must not be null");
+    this.hash = Objects.requireNonNull(hash, "Hash must not be null");
+    return this;
+  }
+
+  public NoiseHandshakeBuilder setHash(final String hashName) throws NoSuchAlgorithmException {
+    this.hash = componentNameResolver.getHash(Objects.requireNonNull(hashName, "Hash must not be null"));
     return this;
   }
 
   public NoiseHandshakeBuilder setKeyAgreement(final NoiseKeyAgreement keyAgreement) {
     this.keyAgreement = Objects.requireNonNull(keyAgreement, "Key agreement algorithm must not be null");
+    return this;
+  }
+
+  public NoiseHandshakeBuilder setKeyAgreement(final String keyAgreementName) throws NoSuchAlgorithmException {
+    this.keyAgreement = componentNameResolver.getKeyAgreement(Objects.requireNonNull(keyAgreementName, "Key agreement algorithm must not be null"));
     return this;
   }
 
@@ -91,17 +125,90 @@ public class NoiseHandshakeBuilder {
         hash,
         prologue,
         localStaticKeyPair,
-        localEphemeralKeyPair,
+        null,
         remoteStaticPublicKey,
-        remoteEphemeralPublicKey,
-        null);
+        null,
+        preSharedKey != null ? List.of(preSharedKey) : null);
   }
 
   // The following initializer methods are auto-generated by GenerateHandshakeBuilderApp
+  public static NoiseHandshakeBuilder forNInitiator(final PublicKey remoteStaticPublicKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("N"),
+          null,
+          remoteStaticPublicKey,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forNResponder(final KeyPair localStaticKeyPair) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("N"),
+          localStaticKeyPair,
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forKInitiator(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("K"),
+          localStaticKeyPair,
+          remoteStaticPublicKey,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forKResponder(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("K"),
+          localStaticKeyPair,
+          remoteStaticPublicKey,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forXInitiator(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("X"),
+          localStaticKeyPair,
+          remoteStaticPublicKey,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forXResponder(final KeyPair localStaticKeyPair) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("X"),
+          localStaticKeyPair,
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
   public static NoiseHandshakeBuilder forNNInitiator() {
     try {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("NN"),
+          null,
           null,
           null);
     } catch (final NoSuchPatternException e) {
@@ -114,6 +221,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("NN"),
           null,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -125,6 +233,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("KN"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -136,7 +245,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("KN"),
           null,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -147,7 +257,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("NK"),
           null,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -158,6 +269,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("NK"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -169,7 +281,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("KK"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -180,7 +293,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("KK"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -190,6 +304,7 @@ public class NoiseHandshakeBuilder {
     try {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("NX"),
+          null,
           null,
           null);
     } catch (final NoSuchPatternException e) {
@@ -202,6 +317,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("NX"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -213,6 +329,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("KX"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -224,7 +341,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("KX"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -235,6 +353,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("XN"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -245,6 +364,7 @@ public class NoiseHandshakeBuilder {
     try {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("XN"),
+          null,
           null,
           null);
     } catch (final NoSuchPatternException e) {
@@ -257,6 +377,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("IN"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -267,6 +388,7 @@ public class NoiseHandshakeBuilder {
     try {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("IN"),
+          null,
           null,
           null);
     } catch (final NoSuchPatternException e) {
@@ -279,7 +401,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("XK"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -290,6 +413,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("XK"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -301,7 +425,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("IK"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -312,6 +437,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("IK"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -323,6 +449,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("XX"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -334,6 +461,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("XX"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -345,6 +473,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("IX"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -356,6 +485,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("IX"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -367,7 +497,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("NK1"),
           null,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -378,6 +509,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("NK1"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -388,6 +520,7 @@ public class NoiseHandshakeBuilder {
     try {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("NX1"),
+          null,
           null,
           null);
     } catch (final NoSuchPatternException e) {
@@ -400,6 +533,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("NX1"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -411,6 +545,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("X1N"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -421,6 +556,7 @@ public class NoiseHandshakeBuilder {
     try {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("X1N"),
+          null,
           null,
           null);
     } catch (final NoSuchPatternException e) {
@@ -433,7 +569,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("X1K"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -444,6 +581,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("X1K"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -455,7 +593,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("XK1"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -466,6 +605,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("XK1"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -477,7 +617,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("X1K1"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -488,6 +629,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("X1K1"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -499,6 +641,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("X1X"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -510,6 +653,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("X1X"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -521,6 +665,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("XX1"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -532,6 +677,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("XX1"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -543,6 +689,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("X1X1"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -554,6 +701,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("X1X1"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -565,6 +713,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("K1N"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -576,7 +725,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("K1N"),
           null,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -587,7 +737,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("K1K"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -598,7 +749,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("K1K"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -609,7 +761,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("KK1"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -620,7 +773,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("KK1"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -631,7 +785,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("K1K1"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -642,7 +797,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("K1K1"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -653,6 +809,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("K1X"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -664,7 +821,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("K1X"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -675,6 +833,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("KX1"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -686,7 +845,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("KX1"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -697,6 +857,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("K1X1"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -708,7 +869,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("K1X1"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -719,6 +881,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("I1N"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -729,6 +892,7 @@ public class NoiseHandshakeBuilder {
     try {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("I1N"),
+          null,
           null,
           null);
     } catch (final NoSuchPatternException e) {
@@ -741,7 +905,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("I1K"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -752,6 +917,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("I1K"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -763,7 +929,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("IK1"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -774,6 +941,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("IK1"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -785,7 +953,8 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("I1K1"),
           localStaticKeyPair,
-          remoteStaticPublicKey);
+          remoteStaticPublicKey,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }
@@ -796,6 +965,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("I1K1"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -807,6 +977,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("I1X"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -818,6 +989,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("I1X"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -829,6 +1001,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("IX1"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -840,6 +1013,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("IX1"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -851,6 +1025,7 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
           HandshakePattern.getInstance("I1X1"),
           localStaticKeyPair,
+          null,
           null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
@@ -862,7 +1037,512 @@ public class NoiseHandshakeBuilder {
       return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
           HandshakePattern.getInstance("I1X1"),
           localStaticKeyPair,
+          null,
           null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forNPsk0Initiator(final PublicKey remoteStaticPublicKey, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("Npsk0"),
+          null,
+          remoteStaticPublicKey,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forNPsk0Responder(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("Npsk0"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forKPsk0Initiator(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("Kpsk0"),
+          localStaticKeyPair,
+          remoteStaticPublicKey,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forKPsk0Responder(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("Kpsk0"),
+          localStaticKeyPair,
+          remoteStaticPublicKey,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forXPsk1Initiator(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("Xpsk1"),
+          localStaticKeyPair,
+          remoteStaticPublicKey,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forXPsk1Responder(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("Xpsk1"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forNNPsk0Initiator(final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("NNpsk0"),
+          null,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forNNPsk0Responder(final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("NNpsk0"),
+          null,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forNNPsk2Initiator(final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("NNpsk2"),
+          null,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forNNPsk2Responder(final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("NNpsk2"),
+          null,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forNKPsk0Initiator(final PublicKey remoteStaticPublicKey, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("NKpsk0"),
+          null,
+          remoteStaticPublicKey,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forNKPsk0Responder(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("NKpsk0"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forNKPsk2Initiator(final PublicKey remoteStaticPublicKey, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("NKpsk2"),
+          null,
+          remoteStaticPublicKey,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forNKPsk2Responder(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("NKpsk2"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forNXPsk2Initiator(final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("NXpsk2"),
+          null,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forNXPsk2Responder(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("NXpsk2"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forXNPsk3Initiator(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("XNpsk3"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forXNPsk3Responder(final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("XNpsk3"),
+          null,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forXKPsk3Initiator(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("XKpsk3"),
+          localStaticKeyPair,
+          remoteStaticPublicKey,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forXKPsk3Responder(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("XKpsk3"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forXXPsk3Initiator(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("XXpsk3"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forXXPsk3Responder(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("XXpsk3"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forKNPsk0Initiator(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("KNpsk0"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forKNPsk0Responder(final PublicKey remoteStaticPublicKey, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("KNpsk0"),
+          null,
+          remoteStaticPublicKey,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forKNPsk2Initiator(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("KNpsk2"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forKNPsk2Responder(final PublicKey remoteStaticPublicKey, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("KNpsk2"),
+          null,
+          remoteStaticPublicKey,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forKKPsk0Initiator(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("KKpsk0"),
+          localStaticKeyPair,
+          remoteStaticPublicKey,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forKKPsk0Responder(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("KKpsk0"),
+          localStaticKeyPair,
+          remoteStaticPublicKey,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forKKPsk2Initiator(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("KKpsk2"),
+          localStaticKeyPair,
+          remoteStaticPublicKey,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forKKPsk2Responder(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("KKpsk2"),
+          localStaticKeyPair,
+          remoteStaticPublicKey,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forKXPsk2Initiator(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("KXpsk2"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forKXPsk2Responder(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("KXpsk2"),
+          localStaticKeyPair,
+          remoteStaticPublicKey,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forINPsk1Initiator(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("INpsk1"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forINPsk1Responder(final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("INpsk1"),
+          null,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forINPsk2Initiator(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("INpsk2"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forINPsk2Responder(final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("INpsk2"),
+          null,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forIKPsk1Initiator(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("IKpsk1"),
+          localStaticKeyPair,
+          remoteStaticPublicKey,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forIKPsk1Responder(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("IKpsk1"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forIKPsk2Initiator(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("IKpsk2"),
+          localStaticKeyPair,
+          remoteStaticPublicKey,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forIKPsk2Responder(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("IKpsk2"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forIXPsk2Initiator(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("IXpsk2"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  public static NoiseHandshakeBuilder forIXPsk2Responder(final KeyPair localStaticKeyPair, final byte[] preSharedKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("IXpsk2"),
+          localStaticKeyPair,
+          null,
+          preSharedKey);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }

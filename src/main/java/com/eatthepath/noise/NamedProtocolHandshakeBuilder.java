@@ -26,10 +26,10 @@ public class NamedProtocolHandshakeBuilder {
   @Nullable private byte[] prologue;
 
   public NamedProtocolHandshakeBuilder(final String noiseProtocolName, final NoiseHandshake.Role role) throws NoSuchAlgorithmException, NoSuchPatternException {
-    this(noiseProtocolName, role, new DefaultProtocolNameResolver());
+    this(noiseProtocolName, role, new DefaultComponentNameResolver());
   }
 
-  public NamedProtocolHandshakeBuilder(final String noiseProtocolName, final NoiseHandshake.Role role, final ProtocolNameResolver protocolNameResolver) throws NoSuchAlgorithmException, NoSuchPatternException {
+  public NamedProtocolHandshakeBuilder(final String noiseProtocolName, final NoiseHandshake.Role role, final ComponentNameResolver componentNameResolver) throws NoSuchAlgorithmException, NoSuchPatternException {
     final String[] components = noiseProtocolName.split("_");
 
     if (components.length != 5) {
@@ -41,9 +41,9 @@ public class NamedProtocolHandshakeBuilder {
     }
 
     this.handshakePattern = HandshakePattern.getInstance(components[1]);
-    this.keyAgreement = protocolNameResolver.getKeyAgreement(components[2]);
-    this.cipher = protocolNameResolver.getCipher(components[3]);
-    this.hash = protocolNameResolver.getHash(components[4]);
+    this.keyAgreement = componentNameResolver.getKeyAgreement(components[2]);
+    this.cipher = componentNameResolver.getCipher(components[3]);
+    this.hash = componentNameResolver.getHash(components[4]);
 
     this.role = role;
   }
