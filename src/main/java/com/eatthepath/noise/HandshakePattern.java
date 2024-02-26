@@ -87,6 +87,8 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
           handshakePattern = null;
         }
 
+        HandshakePatternValidator.validate(handshakePattern);
+
         return handshakePattern;
       } catch (final IllegalArgumentException e) {
         return null;
