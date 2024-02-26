@@ -13,13 +13,312 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
   private static final Map<String, HandshakePattern> FUNDAMENTAL_PATTERNS_BY_NAME;
 
   static {
-    try {
-      FUNDAMENTAL_PATTERNS_BY_NAME = Collections.unmodifiableMap(
-          loadAllFundamentalPatterns("handshake-patterns.txt")
-              .collect(Collectors.toMap(HandshakePattern::name, handshakePattern -> handshakePattern)));
-    } catch (final IOException e) {
-      throw new UncheckedIOException(e);
-    }
+    FUNDAMENTAL_PATTERNS_BY_NAME = Stream.of(
+            """
+                N:
+                  <- s
+                  ...
+                  -> e, es
+                """,
+
+            """
+                K:
+                  -> s
+                  <- s
+                  ...
+                  -> e, es, ss
+                """,
+
+            """
+                X:
+                  <- s
+                  ...
+                  -> e, es, s, ss
+                """,
+
+            """
+                NN:
+                  -> e
+                  <- e, ee
+                """,
+
+            """
+                KN:
+                  -> s
+                  ...
+                  -> e
+                  <- e, ee, se
+                """,
+
+            """
+                NK:
+                  <- s
+                  ...
+                  -> e, es
+                  <- e, ee
+                """,
+
+            """
+                KK:
+                  -> s
+                  <- s
+                  ...
+                  -> e, es, ss
+                  <- e, ee, se
+                """,
+
+            """
+                NX:
+                  -> e
+                  <- e, ee, s, es
+                """,
+
+            """
+                KX:
+                  -> s
+                  ...
+                  -> e
+                  <- e, ee, se, s, es
+                """,
+
+            """
+                XN:
+                  -> e
+                  <- e, ee
+                  -> s, se
+                """,
+
+            """
+                IN:
+                  -> e, s
+                  <- e, ee, se
+                """,
+
+            """
+                XK:
+                  <- s
+                  ...
+                  -> e, es
+                  <- e, ee
+                  -> s, se
+                """,
+
+            """
+                IK:
+                  <- s
+                  ...
+                  -> e, es, s, ss
+                  <- e, ee, se
+                """,
+
+            """
+                XX:
+                  -> e
+                  <- e, ee, s, es
+                  -> s, se
+                """,
+
+            """
+                IX:
+                  -> e, s
+                  <- e, ee, se, s, es
+                """,
+
+            """
+                NK1:
+                  <- s
+                  ...
+                  -> e
+                  <- e, ee, es
+                """,
+
+            """
+                NX1:
+                  -> e
+                  <- e, ee, s
+                  -> es
+                """,
+
+            """
+                X1N:
+                  -> e
+                  <- e, ee
+                  -> s
+                  <- se
+                """,
+
+            """
+                X1K:
+                  <- s
+                  ...
+                  -> e, es
+                  <- e, ee
+                  -> s
+                  <- se
+                """,
+
+            """
+                XK1:
+                  <- s
+                  ...
+                  -> e
+                  <- e, ee, es
+                  -> s, se
+                """,
+
+            """
+                X1K1:
+                  <- s
+                  ...
+                  -> e
+                  <- e, ee, es
+                  -> s
+                  <- se
+                """,
+
+            """
+                X1X:
+                  -> e
+                  <- e, ee, s, es
+                  -> s
+                  <- se
+                """,
+
+            """
+                XX1:
+                  -> e
+                  <- e, ee, s
+                  -> es, s, se
+                """,
+
+            """
+                X1X1:
+                  -> e
+                  <- e, ee, s
+                  -> es, s
+                  <- se
+                """,
+
+            """
+                K1N:
+                  -> s
+                  ...
+                  -> e
+                  <- e, ee
+                  -> se
+                """,
+
+            """
+                K1K:
+                  -> s
+                  <- s
+                  ...
+                  -> e, es
+                  <- e, ee
+                  -> se
+                """,
+
+            """
+                KK1:
+                  -> s
+                  <- s
+                  ...
+                  -> e
+                  <- e, ee, se, es
+                """,
+
+            """
+                K1K1:
+                  -> s
+                  <- s
+                  ...
+                  -> e
+                  <- e, ee, es
+                  -> se
+                """,
+
+            """
+                K1X:
+                  -> s
+                  ...
+                  -> e
+                  <- e, ee, s, es
+                  -> se
+                """,
+
+            """
+                KX1:
+                  -> s
+                  ...
+                  -> e
+                  <- e, ee, se, s
+                  -> es
+                """,
+
+            """
+                K1X1:
+                  -> s
+                  ...
+                  -> e
+                  <- e, ee, s
+                  -> se, es
+                """,
+
+            """
+                I1N:
+                  -> e, s
+                  <- e, ee
+                  -> se
+                """,
+
+            """
+                I1K:
+                  <- s
+                  ...
+                  -> e, es, s
+                  <- e, ee
+                  -> se
+                """,
+
+            """
+                IK1:
+                  <- s
+                  ...
+                  -> e, s
+                  <- e, ee, se, es
+                """,
+
+            """
+                I1K1:
+                  <- s
+                  ...
+                  -> e, s
+                  <- e, ee, es
+                  -> se
+                """,
+
+            """
+                I1X:
+                  -> e, s
+                  <- e, ee, s, es
+                  -> se
+                """,
+
+            """
+                IX1:
+                  -> e, s
+                  <- e, ee, se, s
+                  -> es
+                """,
+
+            """
+                I1X1:
+                  -> e, s
+                  <- e, ee, s
+                  -> se, es
+                """)
+        .map(HandshakePattern::fromString)
+        .collect(Collectors.toMap(HandshakePattern::name, handshakePattern -> handshakePattern));
   }
 
   private static final Map<String, HandshakePattern> DERIVED_PATTERNS_BY_NAME = new ConcurrentHashMap<>();
@@ -297,19 +596,6 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
         .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
         .filter(token -> token == Token.PSK)
         .count());
-  }
-
-  private static Stream<HandshakePattern> loadAllFundamentalPatterns(final String handshakeFileName) throws IOException {
-    try (final InputStream patternFileInputStream = HandshakePattern.class.getResourceAsStream(handshakeFileName)) {
-      if (patternFileInputStream == null) {
-        throw new IOException("Fundamental handshake pattern file not found");
-      }
-
-      return Arrays.stream(new String(patternFileInputStream.readAllBytes(), StandardCharsets.UTF_8).split("\n\n"))
-          .map(String::trim)
-          .filter(chunk -> !chunk.isBlank())
-          .map(HandshakePattern::fromString);
-    }
   }
 
   @Override
