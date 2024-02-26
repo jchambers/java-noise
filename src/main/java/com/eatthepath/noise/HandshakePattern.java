@@ -1,6 +1,8 @@
 package com.eatthepath.noise;
 
+import javax.annotation.Nullable;
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -8,8 +10,19 @@ import java.util.stream.Stream;
 
 public record HandshakePattern(String name, MessagePattern[] preMessagePatterns, MessagePattern[] handshakeMessagePatterns) {
 
-  private static final String HANDSHAKE_PATTERN_FILE_NAME = "handshake-patterns.txt";
-  private static final Map<String, HandshakePattern> PATTERNS_BY_NAME = new ConcurrentHashMap<>();
+  private static final Map<String, HandshakePattern> FUNDAMENTAL_PATTERNS_BY_NAME;
+
+  static {
+    try {
+      FUNDAMENTAL_PATTERNS_BY_NAME = Collections.unmodifiableMap(
+          loadAllFundamentalPatterns("handshake-patterns.txt")
+              .collect(Collectors.toMap(HandshakePattern::name, handshakePattern -> handshakePattern)));
+    } catch (final IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  private static final Map<String, HandshakePattern> DERIVED_PATTERNS_BY_NAME = new ConcurrentHashMap<>();
 
   private static final String PRE_MESSAGE_SEPARATOR = "...";
 
@@ -54,40 +67,37 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
   }
 
   public static HandshakePattern getInstance(final String name) throws NoSuchPatternException {
-    final HandshakePattern handshakePattern = PATTERNS_BY_NAME.computeIfAbsent(name, n -> {
-      try (final InputStream patternFileInputStream = HandshakePattern.class.getResourceAsStream(HANDSHAKE_PATTERN_FILE_NAME)) {
-        if (patternFileInputStream == null) {
-          return null;
-        }
+    if (FUNDAMENTAL_PATTERNS_BY_NAME.containsKey(name)) {
+      return FUNDAMENTAL_PATTERNS_BY_NAME.get(name);
+    }
 
-        try (final BufferedReader reader = new BufferedReader(new InputStreamReader(patternFileInputStream))) {
-          final String expectedPatternHeader = name + ":";
+    @Nullable final HandshakePattern derivedPattern = DERIVED_PATTERNS_BY_NAME.computeIfAbsent(name, n -> {
+      try {
+        final String fundamentalPatternName = getFundamentalPatternName(name);
 
-          final String patternString = reader.lines()
-              .dropWhile(line -> !expectedPatternHeader.equals(line))
-              .takeWhile(line -> !line.isBlank())
-              .collect(Collectors.joining("\n"));
+        @Nullable HandshakePattern handshakePattern;
 
-          if (patternString.isBlank()) {
-            return null;
+        if (FUNDAMENTAL_PATTERNS_BY_NAME.containsKey(fundamentalPatternName)) {
+          handshakePattern = FUNDAMENTAL_PATTERNS_BY_NAME.get(fundamentalPatternName);
+
+          for (final String modifier : getModifiers(name)) {
+            handshakePattern = handshakePattern.withModifier(modifier);
           }
-
-          return fromString(patternString);
-        } catch (final IOException e) {
-          // This should never happen for a resource file we control
-          throw new UncheckedIOException(e);
+        } else {
+          handshakePattern = null;
         }
-      } catch (final IOException e) {
-        // This should never happen for a resource file we control
-        throw new UncheckedIOException(e);
+
+        return handshakePattern;
+      } catch (final IllegalArgumentException e) {
+        return null;
       }
     });
 
-    if (handshakePattern == null) {
-      throw new NoSuchPatternException();
+    if (derivedPattern != null) {
+      return derivedPattern;
     }
 
-    return handshakePattern;
+    throw new NoSuchPatternException();
   }
 
   static String getFundamentalPatternName(final String fullPatternName) {
@@ -129,6 +139,29 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
       modifiedPreMessagePatterns[modifiedPreMessagePatterns.length - 1] = handshakeMessagePatterns()[0];
 
       System.arraycopy(handshakeMessagePatterns(), 1, modifiedHandshakeMessagePatterns, 0, handshakeMessagePatterns().length - 1);
+    } else if (modifier.startsWith("psk")) {
+      final int pskIndex = Integer.parseInt(modifier.substring("psk".length()));
+
+      modifiedPreMessagePatterns = preMessagePatterns().clone();
+      modifiedHandshakeMessagePatterns = handshakeMessagePatterns().clone();
+
+      if (pskIndex == 0) {
+        // Insert a PSK token at the start of the first message
+        final Token[] originalTokens = modifiedHandshakeMessagePatterns[0].tokens();
+        final Token[] modifiedTokens = new Token[originalTokens.length + 1];
+        modifiedTokens[0] = Token.PSK;
+        System.arraycopy(originalTokens, 0, modifiedTokens, 1, originalTokens.length);
+
+        modifiedHandshakeMessagePatterns[0] = new MessagePattern(modifiedHandshakeMessagePatterns[0].sender, modifiedTokens);
+      } else {
+        // Insert a PSK at the end of the N-1st message
+        final Token[] originalTokens = modifiedHandshakeMessagePatterns[pskIndex - 1].tokens();
+        final Token[] modifiedTokens = new Token[originalTokens.length + 1];
+        modifiedTokens[modifiedTokens.length - 1] = Token.PSK;
+        System.arraycopy(originalTokens, 0, modifiedTokens, 0, originalTokens.length);
+
+        modifiedHandshakeMessagePatterns[pskIndex - 1] = new MessagePattern(modifiedHandshakeMessagePatterns[pskIndex - 1].sender, modifiedTokens);
+      }
     } else {
       throw new IllegalArgumentException("Unrecognized modifier: " + modifier);
     }
@@ -262,6 +295,19 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
         .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
         .filter(token -> token == Token.PSK)
         .count());
+  }
+
+  private static Stream<HandshakePattern> loadAllFundamentalPatterns(final String handshakeFileName) throws IOException {
+    try (final InputStream patternFileInputStream = HandshakePattern.class.getResourceAsStream(handshakeFileName)) {
+      if (patternFileInputStream == null) {
+        throw new IOException("Fundamental handshake pattern file not found");
+      }
+
+      return Arrays.stream(new String(patternFileInputStream.readAllBytes(), StandardCharsets.UTF_8).split("\n\n"))
+          .map(String::trim)
+          .filter(chunk -> !chunk.isBlank())
+          .map(HandshakePattern::fromString);
+    }
   }
 
   @Override
