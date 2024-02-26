@@ -67,11 +67,6 @@ public class NamedProtocolHandshakeBuilder {
     return this;
   }
 
-  public NamedProtocolHandshakeBuilder setRemoteEphemeralPublicKey(@Nullable final PublicKey remoteEphemeralPublicKey) {
-    this.remoteEphemeralPublicKey = remoteEphemeralPublicKey;
-    return this;
-  }
-
   public NamedProtocolHandshakeBuilder setRemoteStaticPublicKey(@Nullable final PublicKey remoteStaticPublicKey) {
     if (!handshakePattern.requiresRemoteStaticPublicKey(role)) {
       throw new IllegalStateException(handshakePattern.name() + " handshake pattern does not allow remote static key for " + role + " role");
