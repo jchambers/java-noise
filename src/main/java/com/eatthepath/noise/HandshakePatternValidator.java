@@ -19,6 +19,7 @@ class HandshakePatternValidator {
     validateKeyTransmissionLimits(handshakePattern);
     validateKeyAgreementLimits(handshakePattern);
     validateKeyAgreementBeforeEncrypt(handshakePattern);
+    validatePreSharedKeyEphemeralKey(handshakePattern);
   }
 
   static void validatePublicKeysPresentForKeyAgreement(final HandshakePattern handshakePattern) {
@@ -176,6 +177,33 @@ class HandshakePatternValidator {
       for (final HandshakePattern.Token requiredToken : requiredTokensByRole.getOrDefault(messagePattern.sender(), Collections.emptySet())) {
         if (!encounteredTokens.contains(requiredToken)) {
           throw new IllegalArgumentException("Handshake pattern calls for encryption before performing key agreement between local ephemeral and remote public key for " + messagePattern.sender());
+        }
+      }
+    }
+  }
+
+  static void validatePreSharedKeyEphemeralKey(final HandshakePattern handshakePattern) {
+    for (final NoiseHandshake.Role role : NoiseHandshake.Role.values()) {
+      boolean hasSentEphemeralKey = Arrays.stream(handshakePattern.preMessagePatterns())
+          .filter(messagePattern -> messagePattern.sender() == role)
+          .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
+          .anyMatch(token -> token == HandshakePattern.Token.E);
+
+      boolean needsEphemeralKey = false;
+
+      for (final HandshakePattern.MessagePattern messagePattern : handshakePattern.handshakeMessagePatterns()) {
+        for (final HandshakePattern.Token token : messagePattern.tokens()) {
+          if (token == HandshakePattern.Token.PSK) {
+            needsEphemeralKey = true;
+          }
+
+          if (token == HandshakePattern.Token.E && messagePattern.sender() == role) {
+            hasSentEphemeralKey = true;
+          }
+        }
+
+        if (messagePattern.sender() == role && needsEphemeralKey && !hasSentEphemeralKey) {
+          throw new IllegalArgumentException(role + " does not send ephemeral key before sending message after processing a PSK");
         }
       }
     }
