@@ -56,7 +56,7 @@ public class NoiseHandshakeBuilder {
   }
 
   public NoiseHandshakeBuilder setComponentsFromProtocolName(final String protocolName) throws NoSuchAlgorithmException {
-    final String expectedPrefix = "Noise_" + handshakePattern.name() + "_";
+    final String expectedPrefix = "Noise_" + handshakePattern.getName() + "_";
 
     if (!protocolName.startsWith(expectedPrefix)) {
       throw new IllegalArgumentException("Protocol name must be a Noise protocol name beginning with \"" + expectedPrefix + "\"");

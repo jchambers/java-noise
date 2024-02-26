@@ -29,7 +29,7 @@ class HandshakePatternValidator {
       boolean hasRemoteStaticKey = false;
       boolean hasRemoteEphemeralKey = false;
 
-      for (final HandshakePattern.MessagePattern messagePattern : handshakePattern.preMessagePatterns()) {
+      for (final HandshakePattern.MessagePattern messagePattern : handshakePattern.getPreMessagePatterns()) {
         if (messagePattern.sender() != role) {
           for (final HandshakePattern.Token token : messagePattern.tokens()) {
             switch (token) {
@@ -41,7 +41,7 @@ class HandshakePatternValidator {
         }
       }
 
-      for (final HandshakePattern.MessagePattern messagePattern : handshakePattern.handshakeMessagePatterns()) {
+      for (final HandshakePattern.MessagePattern messagePattern : handshakePattern.getHandshakeMessagePatterns()) {
         for (HandshakePattern.Token token : messagePattern.tokens()) {
           switch (token) {
             case E -> {
@@ -114,7 +114,7 @@ class HandshakePatternValidator {
     for (final NoiseHandshake.Role role : NoiseHandshake.Role.values()) {
       for (final HandshakePattern.Token token : new HandshakePattern.Token[] { HandshakePattern.Token.E, HandshakePattern.Token.S }) {
         final long tokenCount =
-            Stream.concat(Arrays.stream(handshakePattern.preMessagePatterns()), Arrays.stream(handshakePattern.handshakeMessagePatterns()))
+            Stream.concat(Arrays.stream(handshakePattern.getPreMessagePatterns()), Arrays.stream(handshakePattern.getHandshakeMessagePatterns()))
                 .filter(messagePattern -> messagePattern.sender() == role)
                 .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
                 .filter(t -> t == token)
@@ -134,7 +134,7 @@ class HandshakePatternValidator {
         HandshakePattern.Token.EE, HandshakePattern.Token.ES, HandshakePattern.Token.SE, HandshakePattern.Token.SS
     }) {
 
-      final long tokenCount = Arrays.stream(handshakePattern.handshakeMessagePatterns())
+      final long tokenCount = Arrays.stream(handshakePattern.getHandshakeMessagePatterns())
           .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
           .filter(t -> t == token)
           .count();
@@ -152,7 +152,7 @@ class HandshakePatternValidator {
     final Set<HandshakePattern.Token> encounteredTokens = new HashSet<>();
     final EnumMap<NoiseHandshake.Role, Set<HandshakePattern.Token>> requiredTokensByRole = new EnumMap<>(NoiseHandshake.Role.class);
 
-    for (final HandshakePattern.MessagePattern messagePattern : handshakePattern.handshakeMessagePatterns()) {
+    for (final HandshakePattern.MessagePattern messagePattern : handshakePattern.getHandshakeMessagePatterns()) {
       for (final HandshakePattern.Token token : messagePattern.tokens()) {
         encounteredTokens.add(token);
 
@@ -184,14 +184,14 @@ class HandshakePatternValidator {
 
   static void validatePreSharedKeyEphemeralKey(final HandshakePattern handshakePattern) {
     for (final NoiseHandshake.Role role : NoiseHandshake.Role.values()) {
-      boolean hasSentEphemeralKey = Arrays.stream(handshakePattern.preMessagePatterns())
+      boolean hasSentEphemeralKey = Arrays.stream(handshakePattern.getPreMessagePatterns())
           .filter(messagePattern -> messagePattern.sender() == role)
           .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
           .anyMatch(token -> token == HandshakePattern.Token.E);
 
       boolean needsEphemeralKey = false;
 
-      for (final HandshakePattern.MessagePattern messagePattern : handshakePattern.handshakeMessagePatterns()) {
+      for (final HandshakePattern.MessagePattern messagePattern : handshakePattern.getHandshakeMessagePatterns()) {
         for (final HandshakePattern.Token token : messagePattern.tokens()) {
           if (token == HandshakePattern.Token.PSK) {
             needsEphemeralKey = true;

@@ -6,7 +6,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public record HandshakePattern(String name, MessagePattern[] preMessagePatterns, MessagePattern[] handshakeMessagePatterns) {
+public class HandshakePattern {
+
+  private final String name;
+
+  private final MessagePattern[] preMessagePatterns;
+  private final MessagePattern[] handshakeMessagePatterns;
 
   private static final Map<String, HandshakePattern> FUNDAMENTAL_PATTERNS_BY_NAME;
 
@@ -316,14 +321,21 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
                   -> se, es
                 """)
         .map(HandshakePattern::fromString)
-        .collect(Collectors.toMap(HandshakePattern::name, handshakePattern -> handshakePattern));
+        .collect(Collectors.toMap(HandshakePattern::getName, handshakePattern -> handshakePattern));
   }
 
   private static final Map<String, HandshakePattern> DERIVED_PATTERNS_BY_NAME = new ConcurrentHashMap<>();
 
   private static final String PRE_MESSAGE_SEPARATOR = "...";
 
-  public record MessagePattern(NoiseHandshake.Role sender, Token[] tokens) {
+  HandshakePattern(final String name, final MessagePattern[] preMessagePatterns, final MessagePattern[] handshakeMessagePatterns) {
+    this.name = name;
+
+    this.preMessagePatterns = preMessagePatterns;
+    this.handshakeMessagePatterns = handshakeMessagePatterns;
+  }
+
+  record MessagePattern(NoiseHandshake.Role sender, Token[] tokens) {
     @Override
     public boolean equals(final Object o) {
       if (this == o) return true;
@@ -340,7 +352,7 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
     }
   }
 
-  public enum Token {
+  enum Token {
     E,
     S,
     EE,
@@ -361,6 +373,18 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
         default -> throw new IllegalArgumentException("Unrecognized token: " + string);
       };
     }
+  }
+
+  public String getName() {
+    return name;
+  }
+
+  MessagePattern[] getPreMessagePatterns() {
+    return preMessagePatterns;
+  }
+
+  MessagePattern[] getHandshakeMessagePatterns() {
+    return handshakeMessagePatterns;
   }
 
   public static HandshakePattern getInstance(final String name) throws NoSuchPatternException {
@@ -431,18 +455,18 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
 
     if ("fallback".equals(modifier)) {
       // TODO Make sure first handshake message is eligible for fallback
-      modifiedPreMessagePatterns = new MessagePattern[preMessagePatterns().length + 1];
-      modifiedHandshakeMessagePatterns = new MessagePattern[handshakeMessagePatterns().length - 1];
+      modifiedPreMessagePatterns = new MessagePattern[getPreMessagePatterns().length + 1];
+      modifiedHandshakeMessagePatterns = new MessagePattern[getHandshakeMessagePatterns().length - 1];
 
-      System.arraycopy(preMessagePatterns(), 0, modifiedPreMessagePatterns, 0, preMessagePatterns().length);
-      modifiedPreMessagePatterns[modifiedPreMessagePatterns.length - 1] = handshakeMessagePatterns()[0];
+      System.arraycopy(getPreMessagePatterns(), 0, modifiedPreMessagePatterns, 0, getPreMessagePatterns().length);
+      modifiedPreMessagePatterns[modifiedPreMessagePatterns.length - 1] = getHandshakeMessagePatterns()[0];
 
-      System.arraycopy(handshakeMessagePatterns(), 1, modifiedHandshakeMessagePatterns, 0, handshakeMessagePatterns().length - 1);
+      System.arraycopy(getHandshakeMessagePatterns(), 1, modifiedHandshakeMessagePatterns, 0, getHandshakeMessagePatterns().length - 1);
     } else if (modifier.startsWith("psk")) {
       final int pskIndex = Integer.parseInt(modifier.substring("psk".length()));
 
-      modifiedPreMessagePatterns = preMessagePatterns().clone();
-      modifiedHandshakeMessagePatterns = handshakeMessagePatterns().clone();
+      modifiedPreMessagePatterns = getPreMessagePatterns().clone();
+      modifiedHandshakeMessagePatterns = getHandshakeMessagePatterns().clone();
 
       if (pskIndex == 0) {
         // Insert a PSK token at the start of the first message
@@ -467,17 +491,17 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
 
     final String modifiedName;
 
-    if (name().equals(getFundamentalPatternName(name()))) {
+    if (getName().equals(getFundamentalPatternName(getName()))) {
       // Our current name doesn't have any modifiers, and so this is the first
-      modifiedName = name() + modifier;
+      modifiedName = getName() + modifier;
     } else {
-      modifiedName = name() + "+" + modifier;
+      modifiedName = getName() + "+" + modifier;
     }
 
     return new HandshakePattern(modifiedName, modifiedPreMessagePatterns, modifiedHandshakeMessagePatterns);
   }
 
-  public static HandshakePattern fromString(final String patternString) {
+  static HandshakePattern fromString(final String patternString) {
     final String name = patternString.lines()
         .findFirst()
         .filter(line -> line.endsWith(":"))
@@ -548,18 +572,18 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
   }
 
   public boolean isOneWayPattern() {
-    return Arrays.stream(handshakeMessagePatterns())
+    return Arrays.stream(getHandshakeMessagePatterns())
         .allMatch(messagePattern -> messagePattern.sender() == NoiseHandshake.Role.INITIATOR);
   }
 
-  public boolean isFallbackPattern() {
-    return getModifiers(name()).contains("fallback");
+  boolean isFallbackPattern() {
+    return getModifiers(getName()).contains("fallback");
   }
 
   public boolean requiresLocalStaticKeyPair(final NoiseHandshake.Role role) {
     // The given role needs a local static key pair if any pre-handshake message or handshake message involves that role
     // sending a static key to the other party
-    return Stream.concat(Arrays.stream(preMessagePatterns()), Arrays.stream(handshakeMessagePatterns()))
+    return Stream.concat(Arrays.stream(getPreMessagePatterns()), Arrays.stream(getHandshakeMessagePatterns()))
         .filter(messagePattern -> messagePattern.sender() == role)
         .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
         .anyMatch(token -> token == Token.S);
@@ -568,7 +592,7 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
   public boolean requiresRemoteEphemeralPublicKey(final NoiseHandshake.Role role) {
     // The given role needs a remote static key pair if the handshake pattern involves that role receiving an ephemeral
     // key from the other party in a pre-handshake message
-    return Arrays.stream(preMessagePatterns())
+    return Arrays.stream(getPreMessagePatterns())
         .filter(messagePattern -> messagePattern.sender() != role)
         .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
         .anyMatch(token -> token == Token.E);
@@ -577,20 +601,20 @@ public record HandshakePattern(String name, MessagePattern[] preMessagePatterns,
   public boolean requiresRemoteStaticPublicKey(final NoiseHandshake.Role role) {
     // The given role needs a remote static key pair if the handshake pattern involves that role receiving a static key
     // from the other party in a pre-handshake message
-    return Arrays.stream(preMessagePatterns())
+    return Arrays.stream(getPreMessagePatterns())
         .filter(messagePattern -> messagePattern.sender() != role)
         .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
         .anyMatch(token -> token == Token.S);
   }
 
-  public boolean isPreSharedKeyHandshake() {
-    return Arrays.stream(handshakeMessagePatterns())
+  boolean isPreSharedKeyHandshake() {
+    return Arrays.stream(getHandshakeMessagePatterns())
         .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
         .anyMatch(token -> token == Token.PSK);
   }
 
   public int getRequiredPreSharedKeyCount() {
-    return Math.toIntExact(Arrays.stream(handshakeMessagePatterns())
+    return Math.toIntExact(Arrays.stream(getHandshakeMessagePatterns())
         .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
         .filter(token -> token == Token.PSK)
         .count());

@@ -71,8 +71,8 @@ class GenerateHandshakeBuilderApp {
       case RESPONDER -> "Responder";
     };
 
-    final String methodSafePatternName = HandshakePattern.getFundamentalPatternName(handshakePattern.name()) +
-        HandshakePattern.getModifiers(handshakePattern.name()).stream()
+    final String methodSafePatternName = HandshakePattern.getFundamentalPatternName(handshakePattern.getName()) +
+        HandshakePattern.getModifiers(handshakePattern.getName()).stream()
             .map(modifier -> {
               final char firstChar = Character.toUpperCase(modifier.charAt(0));
               return firstChar + modifier.substring(1);
@@ -112,7 +112,7 @@ class GenerateHandshakeBuilderApp {
         "%METHOD_SAFE_PATTERN_NAME%", methodSafePatternName,
         "%METHOD_SAFE_ROLE_NAME%", methodSafeRoleName,
         "%ROLE_ENUM_KEY%", role.name(),
-        "%PATTERN_NAME%", handshakePattern.name(),
+        "%PATTERN_NAME%", handshakePattern.getName(),
         "%ARGUMENT_LIST%", String.join(", ", arguments),
         "%LOCAL_STATIC_KEY_PAIR_ARGUMENT%", localStaticKeyPairArgument,
         "%REMOTE_STATIC_PUBLIC_KEY_ARGUMENT%", remoteStaticPublicKeyArgument,

@@ -60,7 +60,7 @@ public class NamedProtocolHandshakeBuilder {
 
   public NamedProtocolHandshakeBuilder setLocalStaticKeyPair(@Nullable final KeyPair localStaticKeyPair) {
     if (!handshakePattern.requiresLocalStaticKeyPair(role)) {
-      throw new IllegalStateException(handshakePattern.name() + " handshake pattern does not allow local static keys for " + role + " role");
+      throw new IllegalStateException(handshakePattern.getName() + " handshake pattern does not allow local static keys for " + role + " role");
     }
 
     this.localStaticKeyPair = localStaticKeyPair;
@@ -69,7 +69,7 @@ public class NamedProtocolHandshakeBuilder {
 
   public NamedProtocolHandshakeBuilder setRemoteStaticPublicKey(@Nullable final PublicKey remoteStaticPublicKey) {
     if (!handshakePattern.requiresRemoteStaticPublicKey(role)) {
-      throw new IllegalStateException(handshakePattern.name() + " handshake pattern does not allow remote static key for " + role + " role");
+      throw new IllegalStateException(handshakePattern.getName() + " handshake pattern does not allow remote static key for " + role + " role");
     }
 
     this.remoteStaticPublicKey = remoteStaticPublicKey;
@@ -80,11 +80,11 @@ public class NamedProtocolHandshakeBuilder {
     final int requiredPreSharedKeys = handshakePattern.getRequiredPreSharedKeyCount();
 
     if (requiredPreSharedKeys == 0) {
-      throw new IllegalStateException(handshakePattern.name() + " handshake pattern does not allow pre-shared keys");
+      throw new IllegalStateException(handshakePattern.getName() + " handshake pattern does not allow pre-shared keys");
     }
 
     if (preSharedKeys.size() != requiredPreSharedKeys) {
-      throw new IllegalArgumentException(handshakePattern.name() + " requires exactly " + requiredPreSharedKeys + " pre-shared keys");
+      throw new IllegalArgumentException(handshakePattern.getName() + " requires exactly " + requiredPreSharedKeys + " pre-shared keys");
     }
 
     if (preSharedKeys.stream().anyMatch(preSharedKey -> preSharedKey.length != 32)) {
@@ -97,11 +97,11 @@ public class NamedProtocolHandshakeBuilder {
 
   public NoiseHandshake build() {
     if (handshakePattern.requiresRemoteStaticPublicKey(role) && remoteStaticPublicKey == null) {
-      throw new IllegalStateException(handshakePattern.name() + " handshake pattern requires a remote static public key for the " + role + " role");
+      throw new IllegalStateException(handshakePattern.getName() + " handshake pattern requires a remote static public key for the " + role + " role");
     }
 
     if (handshakePattern.requiresLocalStaticKeyPair(role) && localStaticKeyPair == null) {
-      throw new IllegalStateException(handshakePattern.name() + " handshake pattern requires a local static key pair for the " + role + " role");
+      throw new IllegalStateException(handshakePattern.getName() + " handshake pattern requires a local static key pair for the " + role + " role");
     }
 
     // TODO Check key compatibility if applicable

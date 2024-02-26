@@ -14,6 +14,10 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
+/**
+ * @see NamedProtocolHandshakeBuilder
+ * @see NoiseHandshakeBuilder
+ */
 public class NoiseHandshake {
 
   private final String noiseProtocolName;
@@ -50,22 +54,22 @@ public class NoiseHandshake {
 
   private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
 
-  public enum Role {
+  enum Role {
     INITIATOR,
     RESPONDER
   }
 
-  public NoiseHandshake(final Role role,
-                        final HandshakePattern handshakePattern,
-                        final NoiseKeyAgreement keyAgreement,
-                        final NoiseCipher noiseCipher,
-                        final NoiseHash noiseHash,
-                        @Nullable final byte[] prologue,
-                        @Nullable final KeyPair localStaticKeyPair,
-                        @Nullable final KeyPair localEphemeralKeyPair,
-                        @Nullable final PublicKey remoteStaticPublicKey,
-                        @Nullable final PublicKey remoteEphemeralPublicKey,
-                        @Nullable final List<byte[]> preSharedKeys) {
+  NoiseHandshake(final Role role,
+                 final HandshakePattern handshakePattern,
+                 final NoiseKeyAgreement keyAgreement,
+                 final NoiseCipher noiseCipher,
+                 final NoiseHash noiseHash,
+                 @Nullable final byte[] prologue,
+                 @Nullable final KeyPair localStaticKeyPair,
+                 @Nullable final KeyPair localEphemeralKeyPair,
+                 @Nullable final PublicKey remoteStaticPublicKey,
+                 @Nullable final PublicKey remoteEphemeralPublicKey,
+                 @Nullable final List<byte[]> preSharedKeys) {
 
     this.handshakePattern = handshakePattern;
     this.role = role;
@@ -76,21 +80,21 @@ public class NoiseHandshake {
 
     if (handshakePattern.requiresLocalStaticKeyPair(role)) {
       if (localStaticKeyPair == null) {
-        throw new IllegalArgumentException(handshakePattern.name() + " handshake pattern requires a local static key pair for " + role + " role");
+        throw new IllegalArgumentException(handshakePattern.getName() + " handshake pattern requires a local static key pair for " + role + " role");
       }
     } else {
       if (localStaticKeyPair != null) {
-        throw new IllegalArgumentException(handshakePattern.name() + " handshake pattern does not allow a local static key pair for " + role + " role");
+        throw new IllegalArgumentException(handshakePattern.getName() + " handshake pattern does not allow a local static key pair for " + role + " role");
       }
     }
 
     if (handshakePattern.requiresRemoteStaticPublicKey(role)) {
       if (remoteStaticPublicKey == null) {
-        throw new IllegalArgumentException(handshakePattern.name() + " handshake pattern requires a remote static public key for " + role + " role");
+        throw new IllegalArgumentException(handshakePattern.getName() + " handshake pattern requires a remote static public key for " + role + " role");
       }
     } else {
       if (remoteStaticPublicKey != null) {
-        throw new IllegalArgumentException(handshakePattern.name() + " handshake pattern does not allow a remote static public key for " + role + " role");
+        throw new IllegalArgumentException(handshakePattern.getName() + " handshake pattern does not allow a remote static public key for " + role + " role");
       }
     }
 
@@ -98,7 +102,7 @@ public class NoiseHandshake {
 
     if (requiredPreSharedKeys > 0) {
       if (preSharedKeys == null || preSharedKeys.size() != requiredPreSharedKeys) {
-        throw new IllegalArgumentException(handshakePattern.name() + " handshake pattern requires " + requiredPreSharedKeys + " pre-shared keys");
+        throw new IllegalArgumentException(handshakePattern.getName() + " handshake pattern requires " + requiredPreSharedKeys + " pre-shared keys");
       }
 
       if (preSharedKeys.stream().anyMatch(preSharedKey -> preSharedKey.length != 32)) {
@@ -106,7 +110,7 @@ public class NoiseHandshake {
       }
     } else {
       if (preSharedKeys != null && !preSharedKeys.isEmpty()) {
-        throw new IllegalArgumentException(handshakePattern.name() + " handshake pattern does not allow pre-shared keys");
+        throw new IllegalArgumentException(handshakePattern.getName() + " handshake pattern does not allow pre-shared keys");
       }
     }
 
@@ -120,7 +124,7 @@ public class NoiseHandshake {
     this.preSharedKeys = preSharedKeys;
 
     this.noiseProtocolName = "Noise_" +
-        handshakePattern.name() + "_" +
+        handshakePattern.getName() + "_" +
         keyAgreement.getName() + "_" +
         noiseCipher.getName() + "_" +
         noiseHash.getName();
@@ -147,7 +151,7 @@ public class NoiseHandshake {
     chainingKey = hash.clone();
     mixHash(prologue != null ? prologue : EMPTY_BYTE_ARRAY);
 
-    Arrays.stream(handshakePattern.preMessagePatterns())
+    Arrays.stream(handshakePattern.getPreMessagePatterns())
         // Process the initiator's keys first; "initiator" comes before "responder" in the `Role` enum, and so we don't
         // need a specialized comparator
         .sorted(Comparator.comparing(HandshakePattern.MessagePattern::sender))
@@ -263,8 +267,8 @@ public class NoiseHandshake {
   }
 
   public boolean isExpectingRead() {
-    if (currentMessagePattern < handshakePattern.handshakeMessagePatterns().length) {
-      return handshakePattern.handshakeMessagePatterns()[currentMessagePattern].sender() != role;
+    if (currentMessagePattern < handshakePattern.getHandshakeMessagePatterns().length) {
+      return handshakePattern.getHandshakeMessagePatterns()[currentMessagePattern].sender() != role;
     }
 
     // We've completed the whole handshake, so we're not expecting any more messages
@@ -272,8 +276,8 @@ public class NoiseHandshake {
   }
 
   public boolean isExpectingWrite() {
-    if (currentMessagePattern < handshakePattern.handshakeMessagePatterns().length) {
-      return handshakePattern.handshakeMessagePatterns()[currentMessagePattern].sender() == role;
+    if (currentMessagePattern < handshakePattern.getHandshakeMessagePatterns().length) {
+      return handshakePattern.getHandshakeMessagePatterns()[currentMessagePattern].sender() == role;
     }
 
     // We've completed the whole handshake, so we're not expecting any more messages
@@ -281,11 +285,11 @@ public class NoiseHandshake {
   }
 
   public boolean isDone() {
-    return currentMessagePattern == handshakePattern.handshakeMessagePatterns().length;
+    return currentMessagePattern == handshakePattern.getHandshakeMessagePatterns().length;
   }
 
   public int getOutboundMessageLength(final int payloadLength) {
-    if (handshakePattern.handshakeMessagePatterns()[currentMessagePattern].sender() != role) {
+    if (handshakePattern.getHandshakeMessagePatterns()[currentMessagePattern].sender() != role) {
       throw new IllegalArgumentException("Handshake is not currently expecting to send a message");
     }
 
@@ -298,17 +302,17 @@ public class NoiseHandshake {
                                       final int publicKeyLength,
                                       final int payloadLength) {
 
-    if (message < 0 || message >= handshakePattern.handshakeMessagePatterns().length) {
+    if (message < 0 || message >= handshakePattern.getHandshakeMessagePatterns().length) {
       throw new IndexOutOfBoundsException(
           String.format("Message index must be between 0 and %d for this handshake pattern, but was %d",
-              handshakePattern.handshakeMessagePatterns().length, message));
+              handshakePattern.getHandshakeMessagePatterns().length, message));
     }
 
     final boolean isPreSharedKeyHandshake = handshakePattern.isPreSharedKeyHandshake();
 
     // Run through all of this handshake's message patterns to see if we have a key prior to reaching the message of
     // interest
-    boolean hasKey = Arrays.stream(handshakePattern.handshakeMessagePatterns())
+    boolean hasKey = Arrays.stream(handshakePattern.getHandshakeMessagePatterns())
         .limit(message)
         .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
         .anyMatch(token -> token == HandshakePattern.Token.EE
@@ -320,7 +324,7 @@ public class NoiseHandshake {
 
     int messageLength = 0;
 
-    for (final HandshakePattern.Token token : handshakePattern.handshakeMessagePatterns()[message].tokens()) {
+    for (final HandshakePattern.Token token : handshakePattern.getHandshakeMessagePatterns()[message].tokens()) {
       switch (token) {
         case E -> {
           messageLength += publicKeyLength;
@@ -400,7 +404,7 @@ public class NoiseHandshake {
     int offset = messageOffset;
 
     final HandshakePattern.MessagePattern messagePattern =
-        handshakePattern.handshakeMessagePatterns()[currentMessagePattern];
+        handshakePattern.getHandshakeMessagePatterns()[currentMessagePattern];
 
     for (final HandshakePattern.Token token : messagePattern.tokens()) {
       switch (token) {
@@ -479,7 +483,7 @@ public class NoiseHandshake {
     int offset = messageOffset;
 
     final HandshakePattern.MessagePattern messagePattern =
-        handshakePattern.handshakeMessagePatterns()[currentMessagePattern];
+        handshakePattern.getHandshakeMessagePatterns()[currentMessagePattern];
 
     for (final HandshakePattern.Token token : messagePattern.tokens()) {
       switch (token) {
