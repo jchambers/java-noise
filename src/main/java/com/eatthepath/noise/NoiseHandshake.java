@@ -54,7 +54,7 @@ public class NoiseHandshake {
 
   private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
 
-  enum Role {
+  public enum Role {
     INITIATOR,
     RESPONDER
   }
