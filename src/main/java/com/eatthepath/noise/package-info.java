@@ -16,7 +16,7 @@
  * handshake are likely to be controlled by different processes (e.g. a client and server), but for this example, we
  * control both.
  *
- * {@snippet file="SimpleHandshakeExample.java" region="build-handshake"}
+ * {@snippet file="NoisePackageExample.java" region="build-handshake"}
  *
  * Note that in this case, we construct the handshake objects by providing a full Noise protocol name to a
  * {@link com.eatthepath.noise.NamedProtocolHandshakeBuilder}. For more complex handshake patterns, callers would be
@@ -37,12 +37,12 @@
  * initiator and performs a DH key agreement operation between the two ephemeral keys. The initiator receives the
  * responder's ephemeral key and performs the same key agreement operation.
  *
- * {@snippet file="SimpleHandshakeExample.java" region="handshake-messages"}
+ * {@snippet file="NoisePackageExample.java" region="handshake-messages"}
  *
  * With the handshake finished, the handshake objects can be "split" (in the terminology of the Noise protocol) into
  * steady-state transport channels, and then messages can be passed between the initiator and responder at will.
  *
- * {@snippet file="SimpleHandshakeExample.java" region="transport-messages"}
+ * {@snippet file="NoisePackageExample.java" region="transport-messages"}
  *
  * @see <a href="https://noiseprotocol.org/noise.html">The Noise Protocol Framework</a>
  */

@@ -11,7 +11,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 
 @SuppressWarnings("NewClassNamingConvention")
-public class SimpleHandshakeExample {
+public class NoisePackageExample {
 
   @Test
   void simpleHandshake() throws NoSuchAlgorithmException, NoSuchPatternException, InvalidKeySpecException, AEADBadTagException {

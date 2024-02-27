@@ -7,7 +7,34 @@ import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.util.List;
+import java.util.Objects;
 
+/**
+ * A {@code NamedProtocolHandshakeBuilder} constructs {@link NoiseHandshake} instances given a full Noise protocol name
+ * and a role (initiator or responder). Callers are responsible for providing all required key material, which may vary
+ * with handshake pattern and role. For example, the NN handshake pattern is defined as:
+ * <p>
+ * <pre>NN:
+ *   -&gt; e
+ *   &lt;- e, ee</pre>
+ * <p>
+ * …and so neither the initiator nor the responder requires any static or pre-shared keys:
+ *
+ * {@snippet file="NamedProtocolHandshakeBuilderExample.java" region="nn-handshake"}
+ *
+ * By contrast, the IK handshake pattern is defined as:
+ * <p>
+ * <pre>IK:
+ *   &lt;- s
+ *   ...
+ *   -&gt; e, es, s, ss
+ *   &lt;- e, ee, se</pre>
+ * <p>
+ * …and so the initiator needs a local static key pair and a remote static public key, while the responder needs only a
+ * local static key pair:
+ *
+ * {@snippet file="NamedProtocolHandshakeBuilderExample.java" region="ik-handshake"}
+ */
 public class NamedProtocolHandshakeBuilder {
 
   private final HandshakePattern handshakePattern;
@@ -19,17 +46,50 @@ public class NamedProtocolHandshakeBuilder {
 
   @Nullable private KeyPair localEphemeralKeyPair;
   @Nullable private KeyPair localStaticKeyPair;
-  @Nullable private PublicKey remoteEphemeralPublicKey;
   @Nullable private PublicKey remoteStaticPublicKey;
   @Nullable private List<byte[]> preSharedKeys;
 
   @Nullable private byte[] prologue;
 
-  public NamedProtocolHandshakeBuilder(final String noiseProtocolName, final NoiseHandshake.Role role) throws NoSuchAlgorithmException, NoSuchPatternException {
+  /**
+   * Constructs a new Noise handshake for the given Noise protocol name and role, resolving component names with a
+   * default component name resolver.
+   *
+   * @param noiseProtocolName the full Noise protocol name for which to construct a handshake object
+   * @param role the role for the handshake object
+   *
+   * @throws NoSuchAlgorithmException if one or more components of the Noise protocol was not recognized or is not
+   * supported in the current JVM
+   * @throws NoSuchPatternException if the handshake pattern in the Noise protocol name was not recognized or is invalid
+   *
+   * @see DefaultComponentNameResolver
+   */
+  public NamedProtocolHandshakeBuilder(final String noiseProtocolName, final NoiseHandshake.Role role)
+      throws NoSuchAlgorithmException, NoSuchPatternException {
+
     this(noiseProtocolName, role, new DefaultComponentNameResolver());
   }
 
-  public NamedProtocolHandshakeBuilder(final String noiseProtocolName, final NoiseHandshake.Role role, final ComponentNameResolver componentNameResolver) throws NoSuchAlgorithmException, NoSuchPatternException {
+  /**
+   * Constructs a new Noise handshake for the given Noise protocol name and role, resolving component names with the
+   * given component name resolver.
+   *
+   * @param noiseProtocolName the full Noise protocol name for which to construct a handshake object
+   * @param role the role for the handshake object
+   * @param componentNameResolver the component name resolver to use to choose concrete implementations of named Noise
+   *                              protocol components
+   *
+   * @throws NoSuchAlgorithmException if one or more components of the Noise protocol was not recognized or is not
+   * supported in the current JVM
+   * @throws NoSuchPatternException if the handshake pattern in the Noise protocol name was not recognized or is invalid
+   *
+   * @see DefaultComponentNameResolver
+   */
+  public NamedProtocolHandshakeBuilder(final String noiseProtocolName,
+                                       final NoiseHandshake.Role role,
+                                       final ComponentNameResolver componentNameResolver)
+      throws NoSuchAlgorithmException, NoSuchPatternException {
+
     final String[] components = noiseProtocolName.split("_");
 
     if (components.length != 5) {
@@ -48,34 +108,76 @@ public class NamedProtocolHandshakeBuilder {
     this.role = role;
   }
 
+  /**
+   * Sets the prologue for this handshake.
+   *
+   * @param prologue the prologue for this handshake
+   *
+   * @return a reference to this handshake builder
+   */
   public NamedProtocolHandshakeBuilder setPrologue(@Nullable final byte[] prologue) {
     this.prologue = prologue;
     return this;
   }
 
-  public NamedProtocolHandshakeBuilder setLocalEphemeralKeyPair(@Nullable final KeyPair localEphemeralKeyPair) {
+  NamedProtocolHandshakeBuilder setLocalEphemeralKeyPair(@Nullable final KeyPair localEphemeralKeyPair) {
     this.localEphemeralKeyPair = localEphemeralKeyPair;
     return this;
   }
 
-  public NamedProtocolHandshakeBuilder setLocalStaticKeyPair(@Nullable final KeyPair localStaticKeyPair) {
+  /**
+   * Sets the local static key pair for this handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   * 
+   * @return a reference to this handshake builder
+   * 
+   * @throws IllegalStateException if the chosen handshake pattern does not allow for local static keys
+   *
+   * @see HandshakePattern#requiresLocalStaticKeyPair(NoiseHandshake.Role) 
+   */
+  public NamedProtocolHandshakeBuilder setLocalStaticKeyPair(final KeyPair localStaticKeyPair) {
     if (!handshakePattern.requiresLocalStaticKeyPair(role)) {
       throw new IllegalStateException(handshakePattern.getName() + " handshake pattern does not allow local static keys for " + role + " role");
     }
 
-    this.localStaticKeyPair = localStaticKeyPair;
+    this.localStaticKeyPair = Objects.requireNonNull(localStaticKeyPair, "If set, local static key pair may not be null");
     return this;
   }
 
-  public NamedProtocolHandshakeBuilder setRemoteStaticPublicKey(@Nullable final PublicKey remoteStaticPublicKey) {
+  /**
+   * Sets the remote static public key for this handshake.
+   *
+   * @param remoteStaticPublicKey the remote static public key for this handshake; must not be {@code null}
+   *
+   * @return a reference to this builder
+   *
+   * @throws IllegalStateException if the chosen handshake pattern does not allow for remote static keys
+   * 
+   * @see HandshakePattern#requiresRemoteStaticPublicKey(NoiseHandshake.Role) 
+   */
+  public NamedProtocolHandshakeBuilder setRemoteStaticPublicKey(final PublicKey remoteStaticPublicKey) {
     if (!handshakePattern.requiresRemoteStaticPublicKey(role)) {
       throw new IllegalStateException(handshakePattern.getName() + " handshake pattern does not allow remote static key for " + role + " role");
     }
 
-    this.remoteStaticPublicKey = remoteStaticPublicKey;
+    this.remoteStaticPublicKey = Objects.requireNonNull(remoteStaticPublicKey, "If set, remote static public key may not be null");
     return this;
   }
 
+  /**
+   * Sets the pre-shared keys for this handshake.
+   *
+   * @param preSharedKeys the pre-shared keys for this handshake; must not be {@code null}
+   *
+   * @return a reference to this builder
+   *
+   * @throws IllegalStateException if the chosen handshake pattern does not allow for pre-shared keys
+   * @throws IllegalArgumentException if the given list of pre-shared keys has a length that does not match the number
+   * of pre-shared keys required by the chosen handshake pattern or if any key is not exactly 32 bytes in length
+   *
+   * @see HandshakePattern#getRequiredPreSharedKeyCount()
+   */
   public NamedProtocolHandshakeBuilder setPreSharedKeys(final List<byte[]> preSharedKeys) {
     final int requiredPreSharedKeys = handshakePattern.getRequiredPreSharedKeyCount();
 
@@ -95,6 +197,17 @@ public class NamedProtocolHandshakeBuilder {
     return this;
   }
 
+  /**
+   * Constructs a Noise handshake with the previously-configured protocol and keys.
+   *
+   * @return a Noise handshake with the previously-configured protocol and keys
+   *
+   * @throws IllegalStateException if any keys required by the chosen handshake pattern have not been set
+   *
+   * @see HandshakePattern#requiresLocalStaticKeyPair(NoiseHandshake.Role)
+   * @see HandshakePattern#requiresRemoteStaticPublicKey(NoiseHandshake.Role)
+   * @see HandshakePattern#getRequiredPreSharedKeyCount()
+   */
   public NoiseHandshake build() {
     if (handshakePattern.requiresRemoteStaticPublicKey(role) && remoteStaticPublicKey == null) {
       throw new IllegalStateException(handshakePattern.getName() + " handshake pattern requires a remote static public key for the " + role + " role");
@@ -102,6 +215,12 @@ public class NamedProtocolHandshakeBuilder {
 
     if (handshakePattern.requiresLocalStaticKeyPair(role) && localStaticKeyPair == null) {
       throw new IllegalStateException(handshakePattern.getName() + " handshake pattern requires a local static key pair for the " + role + " role");
+    }
+
+    final int requiredPreSharedKeyCount = handshakePattern.getRequiredPreSharedKeyCount();
+
+    if (requiredPreSharedKeyCount > 0 && (preSharedKeys == null || preSharedKeys.size() != requiredPreSharedKeyCount)) {
+      throw new IllegalStateException(handshakePattern.getName() + " handshake pattern requires " + requiredPreSharedKeyCount + " pre-shared keys");
     }
 
     // TODO Check key compatibility if applicable
@@ -113,7 +232,7 @@ public class NamedProtocolHandshakeBuilder {
         localStaticKeyPair,
         localEphemeralKeyPair,
         remoteStaticPublicKey,
-        remoteEphemeralPublicKey,
+        null,
         preSharedKeys);
   }
 }
