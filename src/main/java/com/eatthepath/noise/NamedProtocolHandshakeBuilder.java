@@ -62,12 +62,12 @@ public class NamedProtocolHandshakeBuilder {
    * supported in the current JVM
    * @throws NoSuchPatternException if the handshake pattern in the Noise protocol name was not recognized or is invalid
    *
-   * @see DefaultComponentNameResolver
+   * @see DefaultNamedComponentProvider
    */
   public NamedProtocolHandshakeBuilder(final String noiseProtocolName, final NoiseHandshake.Role role)
       throws NoSuchAlgorithmException, NoSuchPatternException {
 
-    this(noiseProtocolName, role, new DefaultComponentNameResolver());
+    this(noiseProtocolName, role, new DefaultNamedComponentProvider());
   }
 
   /**
@@ -76,18 +76,18 @@ public class NamedProtocolHandshakeBuilder {
    *
    * @param noiseProtocolName the full Noise protocol name for which to construct a handshake object
    * @param role the role for the handshake object
-   * @param componentNameResolver the component name resolver to use to choose concrete implementations of named Noise
+   * @param namedComponentProvider the component name resolver to use to choose concrete implementations of named Noise
    *                              protocol components
    *
    * @throws NoSuchAlgorithmException if one or more components of the Noise protocol was not recognized or is not
    * supported in the current JVM
    * @throws NoSuchPatternException if the handshake pattern in the Noise protocol name was not recognized or is invalid
    *
-   * @see DefaultComponentNameResolver
+   * @see DefaultNamedComponentProvider
    */
   public NamedProtocolHandshakeBuilder(final String noiseProtocolName,
                                        final NoiseHandshake.Role role,
-                                       final ComponentNameResolver componentNameResolver)
+                                       final NamedComponentProvider namedComponentProvider)
       throws NoSuchAlgorithmException, NoSuchPatternException {
 
     final String[] components = noiseProtocolName.split("_");
@@ -101,9 +101,9 @@ public class NamedProtocolHandshakeBuilder {
     }
 
     this.handshakePattern = HandshakePattern.getInstance(components[1]);
-    this.keyAgreement = componentNameResolver.getKeyAgreement(components[2]);
-    this.cipher = componentNameResolver.getCipher(components[3]);
-    this.hash = componentNameResolver.getHash(components[4]);
+    this.keyAgreement = namedComponentProvider.getKeyAgreement(components[2]);
+    this.cipher = namedComponentProvider.getCipher(components[3]);
+    this.hash = namedComponentProvider.getHash(components[4]);
 
     this.role = role;
   }
