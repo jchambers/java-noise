@@ -3,10 +3,7 @@ package com.eatthepath.noise;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 class GenerateHandshakeBuilderApp {
@@ -20,6 +17,18 @@ class GenerateHandshakeBuilderApp {
   };
 
   private static final String INITIALIZER_TEMPLATE = """
+      /**
+       * Constructs a new Noise handshake builder for the %SENTENCE_ROLE_NAME% in %PATTERN_INDEFINITE_ARTICLE%
+       * %PATTERN_NAME% handshake.
+       *
+       * %LOCAL_STATIC_KEY_PAIR_PARAM_TAG%
+       * %REMOTE_STATIC_PUBLIC_KEY_PARAM_TAG%
+       * %PRE_SHARED_KEY_PARAM_TAG%
+       *
+       * @return a new Noise handshake builder
+       *
+       * %THROWS_TAG%
+       */
       public static NoiseHandshakeBuilder for%METHOD_SAFE_PATTERN_NAME%%METHOD_SAFE_ROLE_NAME%(%ARGUMENT_LIST%) {
         try {
           return new NoiseHandshakeBuilder(NoiseHandshake.Role.%ROLE_ENUM_KEY%,
@@ -82,41 +91,74 @@ class GenerateHandshakeBuilderApp {
     final List<String> arguments = new ArrayList<>(3);
 
     final String localStaticKeyPairArgument;
+    final String localStaticKeyPairParamTag;
 
     if (handshakePattern.requiresLocalStaticKeyPair(role)) {
       arguments.add("final KeyPair localStaticKeyPair");
-      localStaticKeyPairArgument = "localStaticKeyPair";
+      localStaticKeyPairArgument = "Objects.requireNonNull(localStaticKeyPair, \"Local static key pair must not be null\")";
+      localStaticKeyPairParamTag = "@param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}";
     } else {
       localStaticKeyPairArgument = "null";
+      localStaticKeyPairParamTag = "";
     }
 
     final String remoteStaticPublicKeyArgument;
+    final String remoteStaticPublicKeyParamTag;
 
     if (handshakePattern.requiresRemoteStaticPublicKey(role)) {
       arguments.add("final PublicKey remoteStaticPublicKey");
-      remoteStaticPublicKeyArgument = "remoteStaticPublicKey";
+      remoteStaticPublicKeyArgument = "Objects.requireNonNull(remoteStaticPublicKey, \"Remote static public key must not be null\")";
+      remoteStaticPublicKeyParamTag = "@param remoteStaticPublicKey the remote static public key for this handshake; must not be {@code null}";
     } else {
       remoteStaticPublicKeyArgument = "null";
+      remoteStaticPublicKeyParamTag = "";
     }
 
     final String preSharedKeyArgument;
+    final String preSharedKeyParamTag;
 
     if (handshakePattern.getRequiredPreSharedKeyCount() > 0) {
       arguments.add("final byte[] preSharedKey");
-      preSharedKeyArgument = "preSharedKey";
+      preSharedKeyArgument = "Objects.requireNonNull(preSharedKey, \"Pre-shared key must not be null\")";
+      preSharedKeyParamTag = "@param preSharedKey the pre-shared key for this handshake; must not be {@code null}";
     } else {
       preSharedKeyArgument = "null";
+      preSharedKeyParamTag = "";
     }
 
-    return Map.of(
-        "%METHOD_SAFE_PATTERN_NAME%", methodSafePatternName,
-        "%METHOD_SAFE_ROLE_NAME%", methodSafeRoleName,
-        "%ROLE_ENUM_KEY%", role.name(),
-        "%PATTERN_NAME%", handshakePattern.getName(),
-        "%ARGUMENT_LIST%", String.join(", ", arguments),
-        "%LOCAL_STATIC_KEY_PAIR_ARGUMENT%", localStaticKeyPairArgument,
-        "%REMOTE_STATIC_PUBLIC_KEY_ARGUMENT%", remoteStaticPublicKeyArgument,
-        "%PRE_SHARED_KEY_ARGUMENT%", preSharedKeyArgument);
+    final String throwsTag;
+    {
+      final StringBuilder throwsTagBuilder = new StringBuilder();
+
+      if (!arguments.isEmpty()) {
+        throwsTagBuilder.append("@throws NullPointerException if any required key {@code null}");
+      }
+
+      if (handshakePattern.getRequiredPreSharedKeyCount() > 0) {
+        throwsTagBuilder.append("\n  * @throws IllegalArgumentException if the given pre-shared key is not exactly 32 bytes long");
+      }
+
+      throwsTag = throwsTagBuilder.toString();
+    }
+
+    final Map<String, String> templateModel = new HashMap<>();
+
+    templateModel.put("%METHOD_SAFE_PATTERN_NAME%", methodSafePatternName);
+    templateModel.put("%METHOD_SAFE_ROLE_NAME%", methodSafeRoleName);
+    templateModel.put("%ROLE_ENUM_KEY%", role.name());
+    templateModel.put("%PATTERN_NAME%", handshakePattern.getName());
+    templateModel.put("%ARGUMENT_LIST%", String.join(", ", arguments));
+    templateModel.put("%LOCAL_STATIC_KEY_PAIR_ARGUMENT%", localStaticKeyPairArgument);
+    templateModel.put("%REMOTE_STATIC_PUBLIC_KEY_ARGUMENT%", remoteStaticPublicKeyArgument);
+    templateModel.put("%PRE_SHARED_KEY_ARGUMENT%", preSharedKeyArgument);
+    templateModel.put("%SENTENCE_ROLE_NAME%", role.name().toLowerCase());
+    templateModel.put("%PATTERN_INDEFINITE_ARTICLE%", handshakePattern.getName().charAt(0) == 'K' ? "a" : "an");
+    templateModel.put("%LOCAL_STATIC_KEY_PAIR_PARAM_TAG%", localStaticKeyPairParamTag);
+    templateModel.put("%REMOTE_STATIC_PUBLIC_KEY_PARAM_TAG%", remoteStaticPublicKeyParamTag);
+    templateModel.put("%PRE_SHARED_KEY_PARAM_TAG%", preSharedKeyParamTag);
+    templateModel.put("%THROWS_TAG%", throwsTag);
+
+    return templateModel;
   }
 
   private static String renderTemplate(final Map<String, String> model) {

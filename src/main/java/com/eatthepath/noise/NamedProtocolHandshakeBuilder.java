@@ -85,7 +85,7 @@ public class NamedProtocolHandshakeBuilder {
   /**
    * Sets the prologue for this handshake.
    *
-   * @param prologue the prologue for this handshake
+   * @param prologue the prologue for this handshake; may be {@code null}
    *
    * @return a reference to this handshake builder
    */

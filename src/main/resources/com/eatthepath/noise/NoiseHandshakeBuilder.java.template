@@ -9,6 +9,20 @@ import java.security.PublicKey;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * A Noise handshake builder constructs {@link NoiseHandshake} instances with known handshake patterns and roles.
+ * In contrast to {@link NamedProtocolHandshakeBuilder}, this builder provides compile-time checks that all required
+ * keys are provided, but places the burden of selecting protocol components (key agreement algorithms, ciphers, and
+ * hash algorithms) on the caller.
+ * <p>
+ * Callers may specify the cryptographic components of a Noise protocol by providing a full Noise protocol name…
+ * <p>
+ * {@snippet file="NoiseHandshakeBuilderExample.java" region="ik-handshake-protocol-name"}
+ * <p>
+ * …or by specifying the name of each component individually:
+ * <p>
+ * {@snippet file="NoiseHandshakeBuilderExample.java" region="ik-handshake-component-names"}
+ */
 @SuppressWarnings("unused")
 public class NoiseHandshakeBuilder {
 
@@ -43,11 +57,35 @@ public class NoiseHandshakeBuilder {
     this.preSharedKey = preSharedKey;
   }
 
+  /**
+   * Sets the prologue for this handshake.
+   *
+   * @param prologue the prologue for this handshake; may be {@code null}
+   *
+   * @return a reference to this handshake builder
+   */
   public NoiseHandshakeBuilder setPrologue(@Nullable final byte[] prologue) {
     this.prologue = prologue;
     return this;
   }
 
+  /**
+   * Sets the cryptographic components (key agreement, cipher, and hash algorithms) for this handshake from a full Noise
+   * protocol name.
+   *
+   * @param protocolName the Noise protocol name from which to choose cryptographic components for this handshake
+   *
+   * @return a reference to this handshake builder
+   *
+   * @throws NoSuchAlgorithmException if one or more of the components in the given protocol name is not supported by
+   * the current JVM
+   * @throws IllegalArgumentException if the given protocol name is not a valid Noise protocol name or if its handshake
+   * pattern does not match the handshake pattern selected for this handshake
+   *
+   * @see NoiseKeyAgreement#getInstance(String)
+   * @see NoiseCipher#getInstance(String)
+   * @see NoiseHash#getInstance(String)
+   */
   public NoiseHandshakeBuilder setComponentsFromProtocolName(final String protocolName) throws NoSuchAlgorithmException {
     final String expectedPrefix = "Noise_" + handshakePattern.getName() + "_";
 
@@ -66,21 +104,70 @@ public class NoiseHandshakeBuilder {
         .setHash(componentNames[2]);
   }
 
+  /**
+   * Sets the cipher to be used by this handshake.
+   *
+   * @param cipherName the name of the Noise cipher to be used by this handshake
+   *
+   * @return a reference to this handshake builder
+   *
+   * @throws NoSuchAlgorithmException if the named algorithm is not supported by the current JVM
+   * @throws IllegalArgumentException if the given name is not recognized as a Noise cipher name
+   *
+   * @see NoiseCipher#getInstance(String)
+   */
   public NoiseHandshakeBuilder setCipher(final String cipherName) throws NoSuchAlgorithmException {
     this.cipher = NoiseCipher.getInstance(Objects.requireNonNull(cipherName, "Cipher must not be null"));
     return this;
   }
 
+  /**
+   * Sets the hash algorithm to be used by this handshake.
+   *
+   * @param hashName the name of the Noise hash to be used by this handshake
+   *
+   * @return a reference to this handshake builder
+   *
+   * @throws NoSuchAlgorithmException if the named algorithm is not supported by the current JVM
+   * @throws IllegalArgumentException if the given name is not recognized as a Noise hash name
+   *
+   * @see NoiseCipher#getInstance(String)
+   */
   public NoiseHandshakeBuilder setHash(final String hashName) throws NoSuchAlgorithmException {
     this.hash = NoiseHash.getInstance(Objects.requireNonNull(hashName, "Hash must not be null"));
     return this;
   }
 
+  /**
+   * Sets the key agreement algorithm to be used by this handshake.
+   *
+   * @param keyAgreementName the name of the Noise key agreement to be used by this handshake
+   *
+   * @return a reference to this handshake builder
+   *
+   * @throws NoSuchAlgorithmException if the named algorithm is not supported by the current JVM
+   * @throws IllegalArgumentException if the given name is not recognized as a Noise key agreement algorithm name
+   *
+   * @see NoiseCipher#getInstance(String)
+   */
   public NoiseHandshakeBuilder setKeyAgreement(final String keyAgreementName) throws NoSuchAlgorithmException {
     this.keyAgreement = NoiseKeyAgreement.getInstance(Objects.requireNonNull(keyAgreementName, "Key agreement algorithm must not be null"));
     return this;
   }
 
+  /**
+   * Constructs a Noise handshake with the previously-specified handshake pattern, role key material and cryptographic
+   * components.
+   *
+   * @return a Noise handshake instance with the previously-specified handshake pattern, role key material and
+   * cryptographic components
+   *
+   * @throws IllegalStateException if one or more cryptographic components has not been specified
+   *
+   * @see #setKeyAgreement(String)
+   * @see #setCipher(String)
+   * @see #setHash(String)
+   */
   public NoiseHandshake build() {
     if (cipher == null) {
       throw new IllegalStateException("Must set a cipher before building a Noise handshake");
@@ -110,5 +197,6 @@ public class NoiseHandshakeBuilder {
   }
 
   // The following initializer methods are auto-generated by GenerateHandshakeBuilderApp
+
 // ----- AUTOGENERATED INITIALIZERS HERE -----
 }
