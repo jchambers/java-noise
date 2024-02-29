@@ -1,6 +1,5 @@
 package com.eatthepath.noise.component;
 
-import com.eatthepath.noise.component.AbstractXECKeyAgreement;
 import org.junit.jupiter.api.Test;
 
 import java.security.InvalidKeyException;
@@ -11,13 +10,18 @@ import java.security.spec.InvalidKeySpecException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-abstract class AbstractXECKeyAgreementTest {
+abstract class AbstractNoiseKeyAgreementTest {
 
-  protected abstract AbstractXECKeyAgreement getKeyAgreement() throws NoSuchAlgorithmException;
+  protected abstract NoiseKeyAgreement getKeyAgreement() throws NoSuchAlgorithmException;
+
+  @Test
+  void getName() throws NoSuchAlgorithmException {
+    assertNotNull(getKeyAgreement().getName());
+  }
 
   @Test
   void generateSecret() throws NoSuchAlgorithmException, InvalidKeyException {
-    final AbstractXECKeyAgreement keyAgreement = getKeyAgreement();
+    final NoiseKeyAgreement keyAgreement = getKeyAgreement();
 
     final KeyPair aliceKeyPair = keyAgreement.generateKeyPair();
     final KeyPair bobKeyPair = keyAgreement.generateKeyPair();
@@ -32,7 +36,7 @@ abstract class AbstractXECKeyAgreementTest {
 
   @Test
   void serializeDeserializePublicKey() throws NoSuchAlgorithmException, InvalidKeySpecException {
-    final AbstractXECKeyAgreement keyAgreement = getKeyAgreement();
+    final NoiseKeyAgreement keyAgreement = getKeyAgreement();
 
     final PublicKey originalPublicKey = keyAgreement.generateKeyPair().getPublic();
     final PublicKey deserializedPublicKey =

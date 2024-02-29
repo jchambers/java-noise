@@ -6,7 +6,7 @@ import java.security.NoSuchAlgorithmException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class X448KeyAgreementTest extends AbstractXECKeyAgreementTest {
+class X448KeyAgreementTest extends AbstractNoiseKeyAgreementTest {
 
   @Override
   protected AbstractXECKeyAgreement getKeyAgreement() throws NoSuchAlgorithmException {
