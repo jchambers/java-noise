@@ -420,7 +420,7 @@ public class HandshakePattern {
       return derivedPattern;
     }
 
-    throw new NoSuchPatternException();
+    throw new NoSuchPatternException(name);
   }
 
   static String getFundamentalPatternName(final String fullPatternName) {
