@@ -6,6 +6,7 @@ import javax.crypto.AEADBadTagException;
 import javax.crypto.ShortBufferException;
 import java.nio.ByteBuffer;
 import java.security.Key;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * A Noise cipher is a stateless object that encrypts and decrypts data for use in a Noise protocol. Noise cipher
@@ -17,6 +18,42 @@ import java.security.Key;
  */
 @ThreadSafe
 public interface NoiseCipher {
+
+  /**
+   * Returns a {@code NoiseCipher} instance that implements the named cipher algorithm. This method recognizes the
+   * following cipher names:
+   * <p>
+   * <dl>
+   *   <dt>ChaChaPoly</dt>
+   *   <dd>Returns a Noise cipher implementation backed by the {@link javax.crypto.Cipher} returned by the most
+   *   preferred security provider that supports the "ChaCha20-Poly1305" cipher transformation</dd>
+   *
+   *   <dt>AESGCM</dt>
+   *   <dd>Returns a Noise cipher implementation backed by the {@link javax.crypto.Cipher} returned by the most
+   *   preferred security provider that supports the "AES/GCM/NoPadding" cipher transformation</dd>
+   * </dl>
+   * <p>
+   * Every implementation of the Java platform is required to support the "AES/GCM/NoPadding" cipher transformation,
+   * which underpins the "AESGCM" Noise cipher.
+   *
+   * @param noiseCipherName the name of the Noise cipher algorithm for which to return a concrete {@code NoiseCipher}
+   *                        implementation
+   *
+   * @return a concrete {@code NoiseCipher} implementation for the given algorithm name
+   *
+   * @throws NoSuchAlgorithmException if the given name is "ChaChaPoly" and the "ChaCha20-Poly1305" cipher
+   * transformation is not supported by any security provider in the current JVM
+   * @throws IllegalArgumentException if the given name is not a known Noise cipher name
+   *
+   * @see javax.crypto.Cipher#getInstance(String)
+   */
+  static NoiseCipher getInstance(final String noiseCipherName) throws NoSuchAlgorithmException {
+    return switch (noiseCipherName) {
+      case "ChaChaPoly" -> new ChaCha20Poly1305Cipher();
+      case "AESGCM" -> new AesGcmCipher();
+      default -> throw new IllegalArgumentException("Unrecognized Noise cipher name: " + noiseCipherName);
+    };
+  }
 
   /**
    * Returns the name of this Noise cipher as it would appear in a full Noise protocol name.

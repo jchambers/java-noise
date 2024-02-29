@@ -15,8 +15,6 @@ public class NoiseHandshakeBuilder {
   private final NoiseHandshake.Role role;
   private final HandshakePattern handshakePattern;
 
-  private NamedComponentProvider namedComponentProvider = new DefaultNamedComponentProvider();
-
   @Nullable private final KeyPair localStaticKeyPair;
   @Nullable private final PublicKey remoteStaticPublicKey;
   @Nullable private final byte[] preSharedKey;
@@ -45,11 +43,6 @@ public class NoiseHandshakeBuilder {
     this.preSharedKey = preSharedKey;
   }
 
-  public NoiseHandshakeBuilder setNamedComponentProvider(final NamedComponentProvider namedComponentProvider) {
-    this.namedComponentProvider = Objects.requireNonNull(namedComponentProvider, "Component name resolver must not be null");
-    return this;
-  }
-
   public NoiseHandshakeBuilder setPrologue(@Nullable final byte[] prologue) {
     this.prologue = prologue;
     return this;
@@ -73,33 +66,18 @@ public class NoiseHandshakeBuilder {
         .setHash(componentNames[2]);
   }
 
-  public NoiseHandshakeBuilder setCipher(final NoiseCipher cipher) {
-    this.cipher = Objects.requireNonNull(cipher, "Cipher must not be null");
-    return this;
-  }
-
   public NoiseHandshakeBuilder setCipher(final String cipherName) throws NoSuchAlgorithmException {
-    this.cipher = namedComponentProvider.getCipher(Objects.requireNonNull(cipherName, "Cipher must not be null"));
-    return this;
-  }
-
-  public NoiseHandshakeBuilder setHash(final NoiseHash hash) {
-    this.hash = Objects.requireNonNull(hash, "Hash must not be null");
+    this.cipher = NoiseCipher.getInstance(Objects.requireNonNull(cipherName, "Cipher must not be null"));
     return this;
   }
 
   public NoiseHandshakeBuilder setHash(final String hashName) throws NoSuchAlgorithmException {
-    this.hash = namedComponentProvider.getHash(Objects.requireNonNull(hashName, "Hash must not be null"));
-    return this;
-  }
-
-  public NoiseHandshakeBuilder setKeyAgreement(final NoiseKeyAgreement keyAgreement) {
-    this.keyAgreement = Objects.requireNonNull(keyAgreement, "Key agreement algorithm must not be null");
+    this.hash = NoiseHash.getInstance(Objects.requireNonNull(hashName, "Hash must not be null"));
     return this;
   }
 
   public NoiseHandshakeBuilder setKeyAgreement(final String keyAgreementName) throws NoSuchAlgorithmException {
-    this.keyAgreement = namedComponentProvider.getKeyAgreement(Objects.requireNonNull(keyAgreementName, "Key agreement algorithm must not be null"));
+    this.keyAgreement = NoiseKeyAgreement.getInstance(Objects.requireNonNull(keyAgreementName, "Key agreement algorithm must not be null"));
     return this;
   }
 

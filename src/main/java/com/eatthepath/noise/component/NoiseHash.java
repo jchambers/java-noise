@@ -5,6 +5,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 /**
  * A Noise hash implementation encapsulates the hashing functionality of a Noise protocol. A Noise hash provides
@@ -12,6 +13,53 @@ import java.security.MessageDigest;
  * same algorithm for calculating HMAC digests, and key derivation function.
  */
 public interface NoiseHash {
+
+  /**
+   * Returns a {@code NoiseHash} instance that implements the named hash algorithm. This method recognizes the following
+   * hash names:
+   * <p>
+   * <dl>
+   *   <dt>SHA256</dt>
+   *   <dd>Returns a Noise hash implementation backed by the {@link java.security.MessageDigest} returned by the most
+   *   preferred security provider that supports the "SHA-256" algorithm and the {@link javax.crypto.Mac} returned by
+   *   the most preferred security provider that supports the "HmacSHA256" algorithm</dd>
+   *
+   *   <dt>SHA512</dt>
+   *   <dd>Returns a Noise hash implementation backed by the {@link java.security.MessageDigest} returned by the most
+   *   preferred security provider that supports the "SHA-512" algorithm and the {@link javax.crypto.Mac} returned by
+   *   the most preferred security provider that supports the "HmacSHA512" algorithm</dd>
+   *
+   *   <dt>BLAKE2s</dt>
+   *   <dd>Returns a Noise hash implementation backed by BLAKE2s implementations included in java-noise</dd>
+   *
+   *   <dt>BLAKE2b</dt>
+   *   <dd>Returns a Noise hash implementation backed by BLAKE2b implementations included in java-noise</dd>
+   * </dl>
+   * <p>
+   * Every implementation of the Java platform is required to support the "SHA-256" and "HmacSHA256" algorithms.
+   * Java-noise provides its own BLAKE2b/BLAKE2s implementations.
+   *
+   * @param noiseHashName the name of the Noise hash algorithm for which to return a concrete {@code NoiseHash}
+   *                      implementation
+   *
+   * @return a concrete {@code NoiseCipher} implementation for the given algorithm name
+   *
+   * @throws NoSuchAlgorithmException if the given name is "SHA512" and either the "SHA-512" or "HmacSHA512" algorithm
+   * is not supported by any security provider in the current JVM
+   * @throws IllegalArgumentException if the given name is not a known Noise hash name
+   *
+   * @see java.security.MessageDigest#getInstance(String)
+   * @see javax.crypto.Mac#getInstance(String)
+   */
+  static NoiseHash getInstance(final String noiseHashName) throws NoSuchAlgorithmException {
+    return switch (noiseHashName) {
+      case "SHA256" -> new Sha256NoiseHash();
+      case "SHA512" -> new Sha512NoiseHash();
+      case "BLAKE2s" -> new Blake2sNoiseHash();
+      case "BLAKE2b" -> new Blake2bNoiseHash();
+      default -> throw new IllegalArgumentException("Unrecognized hash name: " + noiseHashName);
+    };
+  }
 
   /**
    * Returns the name of this Noise hash as it would appear in a full Noise protocol name.

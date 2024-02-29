@@ -1,9 +1,7 @@
 package com.eatthepath.noise.component;
 
-import java.security.InvalidKeyException;
-import java.security.KeyPair;
-import java.security.PrivateKey;
-import java.security.PublicKey;
+import javax.crypto.KeyAgreement;
+import java.security.*;
 import java.security.spec.InvalidKeySpecException;
 
 /**
@@ -12,6 +10,38 @@ import java.security.spec.InvalidKeySpecException;
  * agreement operations, and converts keys to and from "raw" formats for serialization in Noise messages.
  */
 public interface NoiseKeyAgreement {
+
+  /**
+   * Returns a {@code NoiseKeyAgreement} instance that implements the named key agreement algorithm. This method
+   * recognizes the following key agreement algorithm names:
+   * <dl>
+   *   <dt>25519</dt>
+   *   <dd>Returns a Noise key agreement implementation backed by the {@link KeyAgreement} returned by the
+   *   most preferred security provider that supports the "X25519" algorithm</dd>
+   *
+   *   <dt>448</dt>
+   *   <dd>Returns a Noise key agreement implementation backed by the {@link KeyAgreement} returned by the
+   *   most preferred security provider that supports the "X448" algorithm</dd>
+   * </dl>
+   *
+   * @param noiseKeyAgreementName the name of the Noise key agreement algorithm for which to return a concrete
+   * {@code NoiseKeyAgreement} implementation
+   *
+   * @return a concrete {@code NoiseKeyAgreement} implementation for the given algorithm name
+   *
+   * @throws NoSuchAlgorithmException if the given name is a known Noise key agreement name, but the underlying key
+   * agreement algorithm is not supported by any security provider in the current JVM
+   * @throws IllegalArgumentException if the given name is not a known Noise key agreement name
+   *
+   * @see KeyAgreement#getInstance(String)
+   */
+  static NoiseKeyAgreement getInstance(final String noiseKeyAgreementName) throws NoSuchAlgorithmException {
+    return switch (noiseKeyAgreementName) {
+      case "25519" -> new X25519KeyAgreement();
+      case "448" -> new X448KeyAgreement();
+      default -> throw new IllegalArgumentException("Unrecognized key agreement name: " + noiseKeyAgreementName);
+    };
+  }
 
   /**
    * Returns the name of this Noise key agreement as it would appear in a full Noise protocol name.
