@@ -15,8 +15,25 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
+ * A {@code NoiseHandshake} instance is responsible for encrypting and decrypting the messages that comprise a Noise
+ * handshake. Once a Noise handshake instance has finished exchanging handshake messages, it can produce a Noise
+ * transport object for steady-state encryption and decryption of Noise transport messages.
+ * <p>
+ * Noise handshake messages contain key material and an optional payload. The security properties for the optional
+ * payload vary by handshake pattern, message, and sender role. Callers are responsible for verifying that the security
+ * properties associated with ny handshake message are suitable for their use case. Please see
+ * <a href="https://noiseprotocol.org/noise.html#payload-security-properties">The Noise Protocol Framework - Payload
+ * security properties</a> for a complete explanation.
+ * <p>
+ * Generally speaking, the initiator and responder alternate sending and receiving messages until all messages in the
+ * handshake pattern have been exchanged. At that point, callers transform (or "split" in the terminology of the Noise
+ * Protocol Framework specification) the Noise handshake into a Noise transport instance appropriate for the handshake
+ * type (i.e. one-way or bidirectional) and pass Noise transport messages between the initiator and responder as needed.
+ *
  * @see NamedProtocolHandshakeBuilder
  * @see NoiseHandshakeBuilder
+ *
+ * @see <a href="https://noiseprotocol.org/noise.html#payload-security-properties">The Noise Protocol Framework - Payload security proprties</a>
  */
 public class NoiseHandshake {
 
@@ -25,6 +42,7 @@ public class NoiseHandshake {
   private final Role role;
 
   private int currentMessagePattern = 0;
+  private boolean hasSplit = false;
 
   private final CipherState cipherState;
   private final NoiseHash noiseHash;
@@ -54,8 +72,18 @@ public class NoiseHandshake {
 
   private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
 
+  /**
+   * An enumeration of roles within a Noise handshake.
+   */
   public enum Role {
+    /**
+     * Indicates that a party is the initiator of a Noise handshake.
+     */
     INITIATOR,
+
+    /**
+     * Indicates that a party is the responder in a Noise handshake.
+     */
     RESPONDER
   }
 
@@ -190,12 +218,14 @@ public class NoiseHandshake {
               case EE, ES, SE, SS, PSK ->
                   throw new IllegalArgumentException("Key-mixing tokens must not appear in pre-messages");
             }))
-        .forEach(publicKey -> {
-          final byte[] publicKeyBytes = keyAgreement.serializePublicKey(publicKey);
-          mixHash(publicKeyBytes);
-        });
+        .forEach(publicKey -> mixHash(keyAgreement.serializePublicKey(publicKey)));
   }
 
+  /**
+   * Returns the full name of the Noise protocol for this handshake.
+   *
+   * @return the full name of the Noise protocol for this handshake
+   */
   public String getNoiseProtocolName() {
     return noiseProtocolName;
   }
@@ -261,11 +291,26 @@ public class NoiseHandshake {
     return plaintextLength;
   }
 
-  // Visible for testing
-  boolean isOneWayHandshake() {
+  /**
+   * Checks whether this is a handshake for a one-way Noise handshake pattern.
+   *
+   * @return {@code true} if this is a handshake for a one-way Noise handshake pattern or {@code false} if this is a
+   * handshake for a bidirectional Noise handshake pattern
+   */
+  public boolean isOneWayHandshake() {
     return handshakePattern.isOneWayPattern();
   }
 
+  /**
+   * Checks if this handshake is currently expecting to receive a handshake message from its peer.
+   *
+   * @return {@code true} if this handshake is expecting to receive a handshake message from its peer as its next action
+   * or {@code false} if this handshake is done or is expecting to send a handshake message to its peer as its next
+   * action
+   *
+   * @see #isExpectingWrite()
+   * @see #isDone()
+   */
   public boolean isExpectingRead() {
     if (currentMessagePattern < handshakePattern.getHandshakeMessagePatterns().length) {
       return handshakePattern.getHandshakeMessagePatterns()[currentMessagePattern].sender() != role;
@@ -275,6 +320,16 @@ public class NoiseHandshake {
     return false;
   }
 
+  /**
+   * Checks if this handshake is currently expecting to send a handshake message to its peer.
+   *
+   * @return {@code true} if this handshake is expecting to send a handshake message to its peer as its next action or
+   * {@code false} if this handshake is done or is expecting to receive a handshake message from its peer as its next
+   * action
+   *
+   * @see #isExpectingRead()
+   * @see #isDone()
+   */
   public boolean isExpectingWrite() {
     if (currentMessagePattern < handshakePattern.getHandshakeMessagePatterns().length) {
       return handshakePattern.getHandshakeMessagePatterns()[currentMessagePattern].sender() == role;
@@ -284,12 +339,30 @@ public class NoiseHandshake {
     return false;
   }
 
+  /**
+   * Checks if this handshake has successfully exchanged all messages required by its handshake pattern.
+   *
+   * @return {@code true} if all required messages have been exchanged or {@code false} if more exchanges are required
+   *
+   * @see #isExpectingRead()
+   * @see #isExpectingWrite()
+   */
   public boolean isDone() {
     return currentMessagePattern == handshakePattern.getHandshakeMessagePatterns().length;
   }
 
+  /**
+   * Returns the length of the Noise handshake message this handshake would produce for a payload with the given length
+   * and with this handshake's current state.
+   *
+   * @param payloadLength the length of a payload's plaintext
+   *
+   * @return the length of the message this handshake would produce for a payload with the given length
+   *
+   * @throws IllegalStateException if this handshake is not currently expecting to send a message to its peer
+   */
   public int getOutboundMessageLength(final int payloadLength) {
-    if (handshakePattern.getHandshakeMessagePatterns()[currentMessagePattern].sender() != role) {
+    if (!isExpectingWrite()) {
       throw new IllegalArgumentException("Handshake is not currently expecting to send a message");
     }
 
@@ -355,8 +428,24 @@ public class NoiseHandshake {
     return messageLength;
   }
 
-  public int getPayloadLength(final int ciphertextLength) {
-    return getPayloadLength(handshakePattern, currentMessagePattern, keyAgreement.getPublicKeyLength(), ciphertextLength);
+  /**
+   * Returns the length of the plaintext of a payload contained in a Noise handshake message of the given length and
+   * with this handshake's current state.
+   *
+   * @param handshakeMessageLength the length of a Noise handshake message received from this party's peer
+   *
+   * @return the length of the plaintext of a payload contained in a handshake message of the given length
+   *
+   * @throws IllegalStateException if this handshake is not currently expecting to receive a message from its peer
+   * @throws IllegalArgumentException if the given handshake message length shorter than the minimum expected length of
+   * an incoming handshake message
+   */
+  public int getPayloadLength(final int handshakeMessageLength) {
+    if (!isExpectingRead()) {
+      throw new IllegalStateException("Handshake is not currently expecting to read a message");
+    }
+
+    return getPayloadLength(handshakePattern, currentMessagePattern, keyAgreement.getPublicKeyLength(), handshakeMessageLength);
   }
 
   static int getPayloadLength(final HandshakePattern handshakePattern,
@@ -395,7 +484,7 @@ public class NoiseHandshake {
                           final int payloadOffset,
                           final int payloadLength) throws ShortBufferException {
 
-    // TODO Check message buffer length?
+    // TODO Check message buffer length, or just let plumbing deeper down complain?
 
     if (!isExpectingWrite()) {
       throw new IllegalStateException("Handshake not currently expecting to write a message");
@@ -684,42 +773,71 @@ public class NoiseHandshake {
         preSharedKeys);
   }
 
+  /**
+   * Builds a bidirectional Noise transport object from this handshake. This method may be called exactly once, only if
+   * this is a bidirectional (i.e. not one-way) handshake, and only when the handshake is done.
+   *
+   * @return a bidirectional Noise transport object derived from this completed handshake
+   *
+   * @throws IllegalStateException if this is a one-way handshake, the handshake has not finished, or this handshake has
+   * previously been "split" into a Noise transport object
+   *
+   * @see #isDone()
+   * @see #isOneWayHandshake()
+   */
   public NoiseTransport toTransport() {
-    if (!isDone()) {
-      throw new IllegalStateException("Handshake is not finished and expects to exchange more messages");
-    }
-
     if (handshakePattern.isOneWayPattern()) {
-      // TODO Explain
-      throw new IllegalStateException();
+      throw new IllegalStateException("Cannot split a handshake for a one-way pattern into a bidirectional transport instance");
     }
 
     return split();
   }
 
+  /**
+   * Builds a read-only Noise transport object from this handshake. This method may be called exactly once, only if
+   * this is a one-way handshake, only if this is the handshake for the responder, and only when the handshake is done.
+   *
+   * @return a read-only Noise transport object derived from this completed handshake
+   *
+   * @throws IllegalStateException if this is not a one-way handshake, if this method is called on the initiator side
+   * of a one-way handshake, if the handshake has not finished, or this handshake has previously been "split" into a
+   * Noise transport object
+   *
+   * @see #isDone()
+   * @see #isOneWayHandshake()
+   */
   public NoiseTransportReader toTransportReader() {
     if (!handshakePattern.isOneWayPattern()) {
-      // TODO Explain
-      throw new IllegalStateException();
+      throw new IllegalStateException("Bidirectional handshakes may not be split into one-way transport objects");
     }
 
     if (role != Role.RESPONDER) {
-      // TODO Explain
-      throw new IllegalStateException();
+      throw new IllegalStateException("Read-only transport objects may only be created for responders in one-way handshakes");
     }
 
     return split();
   }
 
+  /**
+   * Builds a write-only Noise transport object from this handshake. This method may be called exactly once, only if
+   * this is a one-way handshake, only if this is the handshake for the initiator, and only when the handshake is done.
+   *
+   * @return a read-only Noise transport object derived from this completed handshake
+   *
+   * @throws IllegalStateException if this is not a one-way handshake, if this method is called on the responder side
+   * of a one-way handshake, if the handshake has not finished, or this handshake has previously been "split" into a
+   * Noise transport object
+   *
+   * @see #isDone()
+   * @see #isOneWayHandshake()
+   */
   public NoiseTransportWriter toTransportWriter() {
     if (!handshakePattern.isOneWayPattern()) {
-      // TODO Explain
-      throw new IllegalStateException();
+      throw new IllegalStateException("Bidirectional handshakes may not be split into one-way transport objects");
     }
 
     if (role != Role.INITIATOR) {
-      // TODO Explain
-      throw new IllegalStateException();
+      throw new IllegalStateException("Write-only transport objects may only be created for initiators in one-way handshakes");
     }
 
     return split();
@@ -728,6 +846,10 @@ public class NoiseHandshake {
   private NoiseTransportImpl split() {
     if (!isDone()) {
       throw new IllegalStateException("Handshake is not finished and expects to exchange more messages");
+    }
+
+    if (hasSplit) {
+      throw new IllegalStateException("Handshake has already been split into a Noise transport instance");
     }
 
     final byte[][] derivedKeys = noiseHash.deriveKeys(chainingKey, EMPTY_BYTE_ARRAY, 2);
@@ -741,6 +863,8 @@ public class NoiseHandshake {
 
     final CipherState writerCipherState = new CipherState(cipherState.getCipher());
     writerCipherState.setKey(derivedKeys[isEffectiveInitiator ? 0 : 1]);
+
+    hasSplit = true;
 
     return new NoiseTransportImpl(readerCipherState, writerCipherState);
   }
