@@ -30,6 +30,58 @@ import java.util.List;
  * Protocol Framework specification) the Noise handshake into a Noise transport instance appropriate for the handshake
  * type (i.e. one-way or bidirectional) and pass Noise transport messages between the initiator and responder as needed.
  *
+ * <h2>Fallback patterns</h2>
+ *
+ * Noise handshakes can "fall back" to another pattern to handle certain kinds of errors. As an example, the
+ * <a href="https://noiseprotocol.org/noise.html#noise-pipes">Noise Pipes</a> compound protocol expects that initiators
+ * will usually have the responder's static public key available from a previous "full" (XX) handshake, and can use an
+ * abbreviated (IK) handshake pattern with that static key set via a pre-handshake message. If the responder can't
+ * decrypt a message from the initiator, though, it might conclude that the initiator has a stale copy of its public key
+ * and can fall back to a "full" (XXfallback) handshake.
+ *
+ * <p>The IK handshake pattern is defined as:</p>
+ *
+ * <pre>IK:
+ *   &lt;- s
+ *   ...
+ *   -&gt; e, es, s, ss
+ *   &lt;- e, ee, se</pre>
+ *
+ * <p>…and the XXfallback pattern is defined as:</p>
+ *
+ * <pre>XXfallback:
+ *   -&gt; e
+ *   ...
+ *   &lt;- e, ee, s, es
+ *   -&gt; s, se</pre>
+ *
+ * <p>As an example, consider a scenario where the initiator of an IK handshake has a "stale" static key for the
+ * responder:</p>
+ *
+ * {@snippet file="NoiseHandshakeExample.java" region="build-ik-handshake"}
+ *
+ * <p>The initiator sends its first message to the responder, which won't be able to decrypt the message due to the
+ * static key disagreement:</p>
+ *
+ * {@snippet file="NoiseHandshakeExample.java" region="send-initiator-static-key-message"}
+ *
+ * <p>Rather than simply failing the handshake (assuming both the initiator and responder are expecting that a fallback
+ * may happen), the responder can fall back to the XXfallback pattern, reusing the ephemeral key it already received
+ * from the initiator as a pre-handshake message, and write a message to continue the XXfallback pattern:</p>
+ *
+ * {@snippet file="NoiseHandshakeExample.java" region="responder-fallback"}
+ *
+ * <p>The initiator will fail to decrypt the message from the responder:</p>
+ *
+ * {@snippet file="NoiseHandshakeExample.java" region="initiator-read-fallback-message"}
+ *
+ * <p>Like the responder, the initiator can take the decryption failure as a cue to fall back to the XXfallback pattern,
+ * then read the message and finish the handshake:</p>
+ *
+ * {@snippet file="NoiseHandshakeExample.java" region="initiator-fallback"}
+ *
+ * <p>Once the handshake is finished, the transition to the transport phase of the protocol continues as usual.</p>
+ *
  * @see NamedProtocolHandshakeBuilder
  * @see NoiseHandshakeBuilder
  *
@@ -225,6 +277,8 @@ public class NoiseHandshake {
    * Returns the full name of the Noise protocol for this handshake.
    *
    * @return the full name of the Noise protocol for this handshake
+   *
+   * @see <a href="https://noiseprotocol.org/noise.html#protocol-names-and-modifiers">The Noise Protocol Framework - Protocol names and modifiers</a>
    */
   public String getNoiseProtocolName() {
     return noiseProtocolName;
@@ -717,12 +771,56 @@ public class NoiseHandshake {
     }
   }
 
+  /**
+   * "Falls back" to the named handshake pattern, transferring any appropriate static/ephemeral keys and an empty
+   * collection of pre-shared keys.
+   *
+   * @param handshakePatternName the name of the handshake pattern to which to fall back; must be a pattern with a
+   *                             "fallback" modifier
+   *
+   * @return a new Noise handshake instance that implements the given fallback handshake pattern
+   *
+   * @throws NoSuchPatternException if the given fallback pattern name is not a recognized Noise handshake pattern name
+   * or cannot be derived from a recognized Noise handshake pattern
+   * @throws IllegalArgumentException if the given fallback pattern name is not a fallback pattern
+   * @throws IllegalStateException if the given fallback pattern requires key material not available to the current
+   * handshake
+   *
+   * @see <a href="https://noiseprotocol.org/noise.html#the-fallback-modifier">The Noise Protocol Framework - The fallback modifier</a>
+   *
+   * @see HandshakePattern#isFallbackPattern()
+   */
   public NoiseHandshake fallbackTo(final String handshakePatternName) throws NoSuchPatternException {
+    // TODO Self-destruct after falling back
     return fallbackTo(handshakePatternName, null);
   }
 
+  /**
+   * "Falls back" to the named handshake pattern, transferring any appropriate static/ephemeral keys and the given
+   * collection of pre-shared keys.
+   *
+   * @param handshakePatternName the name of the handshake pattern to which to fall back; must be a pattern with a
+   *                             "fallback" modifier
+   * @param preSharedKeys the pre-shared keys to use in the fallback handshake; may be {@code null}
+   *
+   * @return a new Noise handshake instance that implements the given fallback handshake pattern
+   *
+   * @throws NoSuchPatternException if the given fallback pattern name is not a recognized Noise handshake pattern name
+   * or cannot be derived from a recognized Noise handshake pattern
+   * @throws IllegalArgumentException if the given fallback pattern name is not a fallback pattern
+   * @throws IllegalStateException if the given fallback pattern requires key material not available to the current
+   * handshake
+   *
+   * @see <a href="https://noiseprotocol.org/noise.html#the-fallback-modifier">The Noise Protocol Framework - The fallback modifier</a>
+   *
+   * @see HandshakePattern#isFallbackPattern()
+   */
   public NoiseHandshake fallbackTo(final String handshakePatternName, @Nullable final List<byte[]> preSharedKeys) throws NoSuchPatternException {
     final HandshakePattern fallbackPattern = HandshakePattern.getInstance(handshakePatternName);
+
+    if (!fallbackPattern.isFallbackPattern()) {
+      throw new IllegalArgumentException(handshakePatternName + " is not a valid fallback pattern name");
+    }
 
     @Nullable final KeyPair fallbackLocalStaticKeyPair;
 
@@ -730,7 +828,7 @@ public class NoiseHandshake {
       if (localStaticKeyPair != null) {
         fallbackLocalStaticKeyPair = localStaticKeyPair;
       } else {
-        throw new IllegalArgumentException("Fallback pattern requires a local static key pair, but none is available");
+        throw new IllegalStateException("Fallback pattern requires a local static key pair, but none is available");
       }
     } else {
       fallbackLocalStaticKeyPair = null;
@@ -742,7 +840,7 @@ public class NoiseHandshake {
       if (remoteStaticPublicKey != null) {
         fallbackRemoteStaticPublicKey = remoteStaticPublicKey;
       } else {
-        throw new IllegalArgumentException("Fallback pattern requires a remote static public key, but none is available");
+        throw new IllegalStateException("Fallback pattern requires a remote static public key, but none is available");
       }
     } else {
       fallbackRemoteStaticPublicKey = null;
@@ -754,7 +852,7 @@ public class NoiseHandshake {
       if (remoteEphemeralPublicKey != null) {
         fallbackRemoteEphemeralPublicKey = remoteEphemeralPublicKey;
       } else {
-        throw new IllegalArgumentException("Fallback pattern requires a remote ephemeral public key, but none is available");
+        throw new IllegalStateException("Fallback pattern requires a remote ephemeral public key, but none is available");
       }
     } else {
       fallbackRemoteEphemeralPublicKey = null;
