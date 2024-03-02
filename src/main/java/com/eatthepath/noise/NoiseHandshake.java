@@ -15,29 +15,67 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * A {@code NoiseHandshake} instance is responsible for encrypting and decrypting the messages that comprise a Noise
+ * <p>A {@code NoiseHandshake} instance is responsible for encrypting and decrypting the messages that comprise a Noise
  * handshake. Once a Noise handshake instance has finished exchanging handshake messages, it can produce a Noise
- * transport object for steady-state encryption and decryption of Noise transport messages.
- * <p>
- * Noise handshake messages contain key material and an optional payload. The security properties for the optional
+ * transport object for steady-state encryption and decryption of Noise transport messages.</p>
+ *
+ * <p>Noise handshake messages contain key material and an optional payload. The security properties for the optional
  * payload vary by handshake pattern, message, and sender role. Callers are responsible for verifying that the security
  * properties associated with ny handshake message are suitable for their use case. Please see
  * <a href="https://noiseprotocol.org/noise.html#payload-security-properties">The Noise Protocol Framework - Payload
- * security properties</a> for a complete explanation.
- * <p>
- * Generally speaking, the initiator and responder alternate sending and receiving messages until all messages in the
+ * security properties</a> for a complete explanation.</p>
+ *
+ * <p>Generally speaking, the initiator and responder alternate sending and receiving messages until all messages in the
  * handshake pattern have been exchanged. At that point, callers transform (or "split" in the terminology of the Noise
  * Protocol Framework specification) the Noise handshake into a Noise transport instance appropriate for the handshake
- * type (i.e. one-way or bidirectional) and pass Noise transport messages between the initiator and responder as needed.
+ * type (i.e. one-way or bidirectional) and pass Noise transport messages between the initiator and responder as
+ * needed.</p>
+ *
+ * <h2>Bidirectional patterns</h2>
+ *
+ * <p>In the most common case, Noise handshakes implement a bidirectional pattern in which both parties will send and
+ * receive messages to one another once the handshake is complete. As an example, the NN bidirectional handshake pattern
+ * is defined as:</p>
+ *
+ * <pre>NN:
+ *   -&gt; e
+ *   &lt;- e, ee</pre>
+ *
+ * <p>The parties in an NN handshake exchange messages until all required messages have been exchanged, then the
+ * handshake instances yield bidirectional transport instances:</p>
+ *
+ * {@snippet file="NoiseHandshakeExample.java" region="bidirectional-handshake"}
+ *
+ * <h2>One-way patterns</h2>
+ *
+ * <p>Noise handshakes may also use one-way patterns. As the Noise Protocol Framework specification notes:</p>
+ *
+ * <blockquote>These patterns could be used to encrypt files, database records, or other non-interactive data
+ * streams.</blockquote>
+ *
+ * <p>One-way handshakes exchange handshake messages in the same way as bidirectional handshakes, but instead of
+ * producing bidirectional {@link NoiseTransport} instances, one-way handshakes produce a one-way
+ * {@link NoiseTransportWriter} for initiators or {@link NoiseTransportReader} for responders. As an example, the N
+ * handshake pattern is defined as:</p>
+ *
+ * <pre>N:
+ *   &lt;- s
+ *   ...
+ *   -&gt; e, es</pre>
+ *
+ * <p>The parties in an N handshake exchange messages as usual, then the handshake instances yield one-way transport
+ * instances:</p>
+ *
+ * {@snippet file="NoiseHandshakeExample.java" region="one-way-handshake"}
  *
  * <h2>Fallback patterns</h2>
  *
- * Noise handshakes can "fall back" to another pattern to handle certain kinds of errors. As an example, the
+ * <p>Noise handshakes can "fall back" to another pattern to handle certain kinds of errors. As an example, the
  * <a href="https://noiseprotocol.org/noise.html#noise-pipes">Noise Pipes</a> compound protocol expects that initiators
  * will usually have the responder's static public key available from a previous "full" (XX) handshake, and can use an
  * abbreviated (IK) handshake pattern with that static key set via a pre-handshake message. If the responder can't
  * decrypt a message from the initiator, though, it might conclude that the initiator has a stale copy of its public key
- * and can fall back to a "full" (XXfallback) handshake.
+ * and can fall back to a "full" (XXfallback) handshake.</p>
  *
  * <p>The IK handshake pattern is defined as:</p>
  *

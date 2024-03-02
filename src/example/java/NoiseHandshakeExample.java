@@ -1,6 +1,4 @@
-import com.eatthepath.noise.NoSuchPatternException;
-import com.eatthepath.noise.NoiseHandshake;
-import com.eatthepath.noise.NoiseHandshakeBuilder;
+import com.eatthepath.noise.*;
 import com.eatthepath.noise.component.NoiseKeyAgreement;
 import org.junit.jupiter.api.Test;
 
@@ -14,6 +12,63 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SuppressWarnings("NewClassNamingConvention")
 public class NoiseHandshakeExample {
+
+  @SuppressWarnings("unused")
+  @Test
+  void bidirectionalExample() throws InvalidKeySpecException, AEADBadTagException, NoSuchAlgorithmException {
+    // @start region="bidirectional-handshake"
+    final NoiseHandshake initiatorHandshake = NoiseHandshakeBuilder.forNNInitiator()
+        .setComponentsFromProtocolName("Noise_NN_25519_AESGCM_SHA256")
+        .build();
+
+    final NoiseHandshake responderHandshake = NoiseHandshakeBuilder.forNNResponder()
+        .setComponentsFromProtocolName("Noise_NN_25519_AESGCM_SHA256")
+        .build();
+
+    // -> e (with an empty payload)
+    final byte[] initiatorEMessage = initiatorHandshake.writeMessage(null);
+    responderHandshake.readMessage(initiatorEMessage);
+
+    // <- e, ee (with an empty payload)
+    final byte[] responderEEeMessage = responderHandshake.writeMessage(null);
+    initiatorHandshake.readMessage(responderEEeMessage);
+
+    assert initiatorHandshake.isDone();
+    assert responderHandshake.isDone();
+
+    final NoiseTransport initiatorTransport = initiatorHandshake.toTransport();
+    final NoiseTransport responderTransport = responderHandshake.toTransport();
+    // @end
+  }
+
+  @SuppressWarnings("unused")
+  @Test
+  void oneWayExample() throws NoSuchAlgorithmException, InvalidKeySpecException, AEADBadTagException {
+    final NoiseKeyAgreement keyAgreement = NoiseKeyAgreement.getInstance("25519");
+
+    final KeyPair responderStaticKeyPair = keyAgreement.generateKeyPair();
+    final PublicKey responderStaticPublicKey = responderStaticKeyPair.getPublic();
+
+    // @start region="one-way-handshake"
+    final NoiseHandshake initiatorHandshake = NoiseHandshakeBuilder.forNInitiator(responderStaticPublicKey)
+        .setComponentsFromProtocolName("Noise_N_25519_AESGCM_SHA256")
+        .build();
+
+    final NoiseHandshake responderHandshake = NoiseHandshakeBuilder.forNResponder(responderStaticKeyPair)
+        .setComponentsFromProtocolName("Noise_N_25519_AESGCM_SHA256")
+        .build();
+
+    // -> e, es (with an empty payload)
+    final byte[] initiatorEphemeralKeyMessage = initiatorHandshake.writeMessage(null);
+    responderHandshake.readMessage(initiatorEphemeralKeyMessage);
+
+    assert initiatorHandshake.isDone();
+    assert responderHandshake.isDone();
+
+    final NoiseTransportWriter transportWriter = initiatorHandshake.toTransportWriter();
+    final NoiseTransportReader transportReader = responderHandshake.toTransportReader();
+    // @end
+  }
 
   @Test
   void fallbackExample() throws NoSuchAlgorithmException, InvalidKeySpecException, AEADBadTagException, NoSuchPatternException {
