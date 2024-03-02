@@ -6,7 +6,7 @@
 
     <groupId>com.eatthepath</groupId>
     <artifactId>java-noise</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <version>JGITVER</version>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
