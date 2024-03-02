@@ -578,7 +578,7 @@ public class NoiseHandshake {
     final byte[] message = new byte[getOutboundMessageLength(payloadLength)];
 
     try {
-      final int messageLength = writeMessage(message, 0, payload, 0, payloadLength);
+      final int messageLength = writeMessage(payload, 0, payloadLength, message, 0);
       assert message.length == messageLength;
     } catch (final ShortBufferException e) {
       // This should never happen for a buffer we control
@@ -597,28 +597,28 @@ public class NoiseHandshake {
    * Callers are responsible for verifying that the security properties associated with ny handshake message are
    * suitable for their use case.</p>
    *
-   * @param message a byte array into which to write the resulting handshake message
-   * @param messageOffset the position within {@code message} at which to begin writing the handshake message
    * @param payload a byte array containing the optional payload for this handshake message; may be {@code null}
    * @param payloadOffset the offset within {@code payload} where the payload begins; ignored if {@code payload} is
    * {@code null}
    * @param payloadLength the length of the payload within {@code payload}
+   * @param message a byte array into which to write the resulting handshake message
+   * @param messageOffset the position within {@code message} at which to begin writing the handshake message
    *
    * @return the number of bytes written to {@code message}
    *
    * @throws IllegalStateException if this handshake is not currently expecting to send a handshake message to its peer
    * @throws ShortBufferException if {@code message} is not large enough (after its offset) to hold the handshake
    * message
-   *
    * @see #isExpectingWrite()
-   * @see #getOutboundMessageLength(int) 
-   * @see <a href="https://noiseprotocol.org/noise.html#payload-security-properties">The Noise Protocol Framework - Payload security properties</a>
+   * @see #getOutboundMessageLength(int)
+   * @see <a href="https://noiseprotocol.org/noise.html#payload-security-properties">The Noise Protocol Framework -
+   * Payload security properties</a>
    */
-  public int writeMessage(final byte[] message,
-                          final int messageOffset,
-                          @Nullable final byte[] payload,
+  public int writeMessage(@Nullable final byte[] payload,
                           final int payloadOffset,
-                          final int payloadLength) throws ShortBufferException {
+                          final int payloadLength,
+                          final byte[] message,
+                          final int messageOffset) throws ShortBufferException {
 
     // TODO Check message buffer length, or just let plumbing deeper down complain?
 
@@ -727,7 +727,7 @@ public class NoiseHandshake {
    * payload included in the given handshake message
    * @throws IllegalArgumentException if the given message is too short to contain the expected handshake message
    * 
-   * @see #getPayloadLength(int) 
+   * @see #getPayloadLength(int)
    */
   public int readMessage(final byte[] message,
                          final int messageOffset,
