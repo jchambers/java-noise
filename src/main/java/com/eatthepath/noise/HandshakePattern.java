@@ -7,14 +7,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * <p>A handshake pattern specifies the sequential exchange of messages that comprise a Noise handshake. Callers
- * generally do not need to interact directly with handshake patterns.</p>
- *
- * <p>Handshake patterns may be retrieved by name. For example:</p>
- *
- * {@snippet file="HandshakePatternExample.java" region="get-instance"}
+ * A handshake pattern specifies the sequential exchange of messages that comprise a Noise handshake. Callers generally
+ * do not need to interact directly with handshake patterns.
  */
-public class HandshakePattern {
+class HandshakePattern {
 
   private final String name;
 
@@ -388,7 +384,7 @@ public class HandshakePattern {
    *
    * @return the name of this handshake pattern
    */
-  public String getName() {
+  String getName() {
     return name;
   }
 
@@ -409,7 +405,7 @@ public class HandshakePattern {
    *
    * @throws NoSuchPatternException if the given cannot be resolved to a Noise handshake pattern
    */
-  public static HandshakePattern getInstance(final String name) throws NoSuchPatternException {
+  static HandshakePattern getInstance(final String name) throws NoSuchPatternException {
     if (FUNDAMENTAL_PATTERNS_BY_NAME.containsKey(name)) {
       return FUNDAMENTAL_PATTERNS_BY_NAME.get(name);
     }
@@ -599,7 +595,7 @@ public class HandshakePattern {
    *
    * @see <a href="https://noiseprotocol.org/noise.html#one-way-handshake-patterns">The Noise Protocol Framework - One-way handshake patterns</a>
    */
-  public boolean isOneWayPattern() {
+  boolean isOneWayPattern() {
     return Arrays.stream(getHandshakeMessagePatterns())
         .allMatch(messagePattern -> messagePattern.sender() == NoiseHandshake.Role.INITIATOR);
   }
@@ -617,7 +613,7 @@ public class HandshakePattern {
    * @return {@code true} if the given party must provide a local static key pair prior to beginning the handshake or
    * {@code false} otherwise
    */
-  public boolean requiresLocalStaticKeyPair(final NoiseHandshake.Role role) {
+  boolean requiresLocalStaticKeyPair(final NoiseHandshake.Role role) {
     // The given role needs a local static key pair if any pre-handshake message or handshake message involves that role
     // sending a static key to the other party
     return Stream.concat(Arrays.stream(getPreMessagePatterns()), Arrays.stream(getHandshakeMessagePatterns()))
@@ -635,7 +631,7 @@ public class HandshakePattern {
    * @return {@code true} if the given party must provide a remote ephemeral public key prior to beginning the handshake
    * or {@code false} otherwise
    */
-  public boolean requiresRemoteEphemeralPublicKey(final NoiseHandshake.Role role) {
+  boolean requiresRemoteEphemeralPublicKey(final NoiseHandshake.Role role) {
     // The given role needs a remote static key pair if the handshake pattern involves that role receiving an ephemeral
     // key from the other party in a pre-handshake message
     return Arrays.stream(getPreMessagePatterns())
@@ -653,7 +649,7 @@ public class HandshakePattern {
    * @return {@code true} if the given party must provide a remote static public key prior to beginning the handshake or
    * {@code false} otherwise
    */
-  public boolean requiresRemoteStaticPublicKey(final NoiseHandshake.Role role) {
+  boolean requiresRemoteStaticPublicKey(final NoiseHandshake.Role role) {
     // The given role needs a remote static key pair if the handshake pattern involves that role receiving a static key
     // from the other party in a pre-handshake message
     return Arrays.stream(getPreMessagePatterns())
@@ -673,7 +669,7 @@ public class HandshakePattern {
    *
    * @return the number of pre-shared keys either party in this handshake must provide prior to beginning the handshake
    */
-  public int getRequiredPreSharedKeyCount() {
+  int getRequiredPreSharedKeyCount() {
     return Math.toIntExact(Arrays.stream(getHandshakeMessagePatterns())
         .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
         .filter(token -> token == Token.PSK)
