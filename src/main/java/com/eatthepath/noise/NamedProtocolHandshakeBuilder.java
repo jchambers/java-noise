@@ -10,28 +10,29 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A {@code NamedProtocolHandshakeBuilder} constructs {@link NoiseHandshake} instances given a full Noise protocol name
- * and a role (initiator or responder). Callers are responsible for providing all required key material, which may vary
- * with handshake pattern and role. For example, the NN handshake pattern is defined as:
- * <p>
+ * <p>A {@code NamedProtocolHandshakeBuilder} constructs {@link NoiseHandshake} instances given a full Noise protocol
+ * name and a role (initiator or responder). In contrast to {@link NoiseHandshakeBuilder}, callers are responsible for
+ * identifying and providing all required key material, which may vary with handshake pattern and role. For example, the
+ * NN handshake pattern is defined as:</p>
+ *
  * <pre>NN:
  *   -&gt; e
  *   &lt;- e, ee</pre>
- * <p>
- * …and so neither the initiator nor the responder requires any static or pre-shared keys:
+ *
+ * <p>…and so neither the initiator nor the responder requires any static or pre-shared keys:</p>
  *
  * {@snippet file="NamedProtocolHandshakeBuilderExample.java" region="nn-handshake"}
  *
- * By contrast, the IK handshake pattern is defined as:
- * <p>
+ * <p>By contrast, the IK handshake pattern is defined as:</p>
+ *
  * <pre>IK:
  *   &lt;- s
  *   ...
  *   -&gt; e, es, s, ss
  *   &lt;- e, ee, se</pre>
- * <p>
- * …and so the initiator needs a local static key pair and a remote static public key, while the responder needs only a
- * local static key pair:
+ *
+ * <p>…and so the initiator needs a local static key pair and a remote static public key, while the responder needs only
+ * a local static key pair:</p>
  *
  * {@snippet file="NamedProtocolHandshakeBuilderExample.java" region="ik-handshake"}
  *

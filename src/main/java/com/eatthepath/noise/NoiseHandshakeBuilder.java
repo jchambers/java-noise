@@ -10,17 +10,17 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A Noise handshake builder constructs {@link NoiseHandshake} instances with known handshake patterns and roles.
+ * <p>A Noise handshake builder constructs {@link NoiseHandshake} instances with known handshake patterns and roles.
  * In contrast to {@link NamedProtocolHandshakeBuilder}, this builder provides compile-time checks that all required
  * keys are provided, but places the burden of selecting protocol components (key agreement algorithms, ciphers, and
- * hash algorithms) on the caller.
- * <p>
- * Callers may specify the cryptographic components of a Noise protocol by providing a full Noise protocol name…
- * <p>
+ * hash algorithms) on the caller.</p>
+ *
+ * <p>Callers may specify the cryptographic components of a Noise protocol by providing a full Noise protocol name…</p>
+ *
  * {@snippet file="NoiseHandshakeBuilderExample.java" region="ik-handshake-protocol-name"}
- * <p>
- * …or by specifying the name of each component individually:
- * <p>
+ *
+ * <p>…or by specifying the name of each component individually:</p>
+ *
  * {@snippet file="NoiseHandshakeBuilderExample.java" region="ik-handshake-component-names"}
  *
  * @see NamedProtocolHandshakeBuilder

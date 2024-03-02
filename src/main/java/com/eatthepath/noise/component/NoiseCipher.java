@@ -9,20 +9,20 @@ import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 
 /**
- * A Noise cipher is a stateless object that encrypts and decrypts data for use in a Noise protocol. Noise cipher
+ * <p>A Noise cipher is a stateless object that encrypts and decrypts data for use in a Noise protocol. Noise cipher
  * implementations must be thread-safe (i.e. calling encryption/decryption methods on different sets of data
- * concurrently and from different threads must have no adverse effect).
- * <p>
- * Noise cipher implementations must operate in AEAD mode, produce a 16-byte AEAD tag when encrypting data, and verify
- * a 16-byte AEAD tag when decrypting data.
+ * concurrently and from different threads must have no adverse effect).</p>
+ *
+ * <p>Noise cipher implementations must operate in AEAD mode, produce a 16-byte AEAD tag when encrypting data, and
+ * verify a 16-byte AEAD tag when decrypting data.</p>
  */
 @ThreadSafe
 public interface NoiseCipher {
 
   /**
-   * Returns a {@code NoiseCipher} instance that implements the named cipher algorithm. This method recognizes the
-   * following cipher names:
-   * <p>
+   * <p>Returns a {@code NoiseCipher} instance that implements the named cipher algorithm. This method recognizes the
+   * following cipher names:</p>
+   *
    * <dl>
    *   <dt>ChaChaPoly</dt>
    *   <dd>Returns a Noise cipher implementation backed by the {@link javax.crypto.Cipher} returned by the most
@@ -32,9 +32,9 @@ public interface NoiseCipher {
    *   <dd>Returns a Noise cipher implementation backed by the {@link javax.crypto.Cipher} returned by the most
    *   preferred security provider that supports the "AES/GCM/NoPadding" cipher transformation</dd>
    * </dl>
-   * <p>
-   * Every implementation of the Java platform is required to support the "AES/GCM/NoPadding" cipher transformation,
-   * which underpins the "AESGCM" Noise cipher.
+   *
+   * <p>Every implementation of the Java platform is required to support the "AES/GCM/NoPadding" cipher transformation,
+   * which underpins the "AESGCM" Noise cipher.</p>
    *
    * @param noiseCipherName the name of the Noise cipher algorithm for which to return a concrete {@code NoiseCipher}
    *                        implementation
@@ -63,13 +63,13 @@ public interface NoiseCipher {
   String getName();
 
   /**
-   * Encrypts the given plaintext using the given key, nonce, and associated data. This method returns a new byte buffer
-   * sized exactly to contain the resulting ciphertext and AEAD tag.
-   * <p>
-   * All {@code plaintext.remaining()} bytes starting at {@code plaintext.position()} are processed. Upon return, the
+   * <p>Encrypts the given plaintext using the given key, nonce, and associated data. This method returns a new byte
+   * buffer sized exactly to contain the resulting ciphertext and AEAD tag.</p>
+   *
+   * <p>All {@code plaintext.remaining()} bytes starting at {@code plaintext.position()} are processed. Upon return, the
    * plaintext buffer's position will be equal to its limit; its limit will not have changed. If associated data is
    * provided, the same is true of the associated data buffer. The returned ciphertext buffer's position will be zero,
-   * and its limit will be equal to its capacity.
+   * and its limit will be equal to its capacity.</p>
    *
    * @param key the key with which to encrypt the given plaintext
    * @param nonce a nonce, which must be unique for the given key
@@ -99,16 +99,17 @@ public interface NoiseCipher {
   }
 
   /**
-   * Encrypts the given plaintext using the given key, nonce, and associated data. Callers are responsible for ensuring
-   * that the given ciphertext buffer has enough remaining capacity to hold the resulting ciphertext and AEAD tag.
-   * <p>
-   * All {@code plaintext.remaining()} bytes starting at {@code plaintext.position()} are processed. Upon return, the
+   * <p>Encrypts the given plaintext using the given key, nonce, and associated data. Callers are responsible for
+   * ensuring that the given ciphertext buffer has enough remaining capacity to hold the resulting ciphertext and AEAD
+   * tag.</p>
+   *
+   * <p>All {@code plaintext.remaining()} bytes starting at {@code plaintext.position()} are processed. Upon return, the
    * plaintext buffer's position will be equal to its limit; its limit will not have changed. If associated data is
    * provided, the same will be true of the associated data buffer. The ciphertext buffer's position will have advanced
-   * by n, where n is the value returned by this method; the ciphertext buffer's limit will not have changed.
-   * <p>
-   * Note that the ciphertext and plaintext buffers must be different, but may refer to the same underlying byte array
-   * to facilitate in-place encryption.
+   * by n, where n is the value returned by this method; the ciphertext buffer's limit will not have changed.</p>
+   *
+   * <p>Note that the ciphertext and plaintext buffers must be different, but may refer to the same underlying byte
+   * array to facilitate in-place encryption.</p>
    *
    * @param key the key with which to encrypt the given plaintext
    * @param nonce a nonce, which must be unique for the given key
@@ -170,10 +171,10 @@ public interface NoiseCipher {
   }
 
   /**
-   * Encrypts the given plaintext using the given key, nonce, and associated data. Callers are responsible for ensuring
-   * that the given ciphertext array is large enough to hold the resulting ciphertext and AEAD tag.
-   * <p>
-   * Note that the ciphertext and plaintext arrays may refer to the same array, allowing for in-place encryption.
+   * <p>Encrypts the given plaintext using the given key, nonce, and associated data. Callers are responsible for
+   * ensuring that the given ciphertext array is large enough to hold the resulting ciphertext and AEAD tag.</p>
+   *
+   * <p>Note that the ciphertext and plaintext arrays may refer to the same array, allowing for in-place encryption.</p>
    *
    * @param key the key with which to encrypt the given plaintext
    * @param nonce a nonce, which must be unique for the given key
@@ -211,13 +212,13 @@ public interface NoiseCipher {
               final int ciphertextOffset) throws ShortBufferException;
 
   /**
-   * Decrypts the given ciphertext and verifies its AEAD tag using the given key, nonce, and associated data. This
+   * <p>Decrypts the given ciphertext and verifies its AEAD tag using the given key, nonce, and associated data. This
    * method returns a new {@link ByteBuffer} sized exactly to contain the resulting plaintext. The returned buffer's
-   * position will be zero, and its limit and capacity will be equal to the plaintext length.
-   * <p>
-   * All {@code ciphertext.remaining()} bytes starting at {@code ciphertext.position()} are processed. Upon return, the
-   * ciphertext buffer's position will be equal to its limit; its limit will not have changed. If associated data is
-   * provided, the same will be true of the associated data buffer.
+   * position will be zero, and its limit and capacity will be equal to the plaintext length.</p>
+   *
+   * <p>All {@code ciphertext.remaining()} bytes starting at {@code ciphertext.position()} are processed. Upon return,
+   * the ciphertext buffer's position will be equal to its limit; its limit will not have changed. If associated data is
+   * provided, the same will be true of the associated data buffer.</p>
    *
    * @param key the key with which to decrypt the given ciphertext
    * @param nonce a nonce, which must be unique for the given key
@@ -250,14 +251,14 @@ public interface NoiseCipher {
   }
 
   /**
-   * Decrypts the given ciphertext and verifies its AEAD tag using the given key, nonce, and associated data. This
+   * <p>Decrypts the given ciphertext and verifies its AEAD tag using the given key, nonce, and associated data. This
    * method writes the resulting plaintext into the given {@code plaintext} buffer. Callers are responsible for ensuring
-   * that the given plaintext buffer has enough remaining capacity to hold the resulting plaintext.
-   * <p>
-   * All {@code ciphertext.remaining()} bytes starting at {@code ciphertext.position()} are processed. Upon return, the
-   * ciphertext buffer's position will be equal to its limit; its limit will not have changed. If associated data is
+   * that the given plaintext buffer has enough remaining capacity to hold the resulting plaintext.</p>
+   *
+   * <p>All {@code ciphertext.remaining()} bytes starting at {@code ciphertext.position()} are processed. Upon return,
+   * the ciphertext buffer's position will be equal to its limit; its limit will not have changed. If associated data is
    * provided, the same will be true of the associated data buffer. The plaintext buffer's position will have advanced
-   * by n, where n is the value returned by this method; the plaintext buffer's limit will not have changed.
+   * by n, where n is the value returned by this method; the plaintext buffer's limit will not have changed.</p>
    *
    * @param key the key with which to decrypt the given ciphertext
    * @param nonce a nonce, which must be unique for the given key
@@ -324,11 +325,11 @@ public interface NoiseCipher {
   }
 
   /**
-   * Decrypts the given ciphertext and verifies its AEAD tag. This writes the resulting plaintext into a provided byte
-   * array.
-   * <p>
-   * Note that {@code ciphertext} and {@code plaintext} may refer to the same byte array, allowing for in-place
-   * decryption.
+   * <p>Decrypts the given ciphertext and verifies its AEAD tag. This writes the resulting plaintext into a provided
+   * byte array.</p>
+   *
+   * <p>Note that {@code ciphertext} and {@code plaintext} may refer to the same byte array, allowing for in-place
+   * decryption.</p>
    *
    * @param key the key with which to decrypt the given plaintext
    * @param nonce a nonce, which must be unique for the given key

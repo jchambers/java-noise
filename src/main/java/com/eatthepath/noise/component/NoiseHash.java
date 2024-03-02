@@ -15,9 +15,9 @@ import java.security.NoSuchAlgorithmException;
 public interface NoiseHash {
 
   /**
-   * Returns a {@code NoiseHash} instance that implements the named hash algorithm. This method recognizes the following
-   * hash names:
-   * <p>
+   * <p>Returns a {@code NoiseHash} instance that implements the named hash algorithm. This method recognizes the
+   * following hash names:</p>
+   *
    * <dl>
    *   <dt>SHA256</dt>
    *   <dd>Returns a Noise hash implementation backed by the {@link java.security.MessageDigest} returned by the most
@@ -35,9 +35,9 @@ public interface NoiseHash {
    *   <dt>BLAKE2b</dt>
    *   <dd>Returns a Noise hash implementation backed by BLAKE2b implementations included in java-noise</dd>
    * </dl>
-   * <p>
-   * Every implementation of the Java platform is required to support the "SHA-256" and "HmacSHA256" algorithms.
-   * Java-noise provides its own BLAKE2b/BLAKE2s implementations.
+   *
+   * <p>Every implementation of the Java platform is required to support the "SHA-256" and "HmacSHA256" algorithms.
+   * Java-noise provides its own BLAKE2b/BLAKE2s implementations.</p>
    *
    * @param noiseHashName the name of the Noise hash algorithm for which to return a concrete {@code NoiseHash}
    *                      implementation
@@ -90,11 +90,11 @@ public interface NoiseHash {
   int getHashLength();
 
   /**
-   * Derives two or three pseudo-random keys from the given chaining key and input key material using the HKDF
-   * algorithm with this Noise hash's HMAC algorithm.
-   * <p>
-   * As the Noise Protocol Framework specification notes:
-   * <p>
+   * <p>Derives two or three pseudo-random keys from the given chaining key and input key material using the HKDF
+   * algorithm with this Noise hash's HMAC algorithm.</p>
+   *
+   * <p>As the Noise Protocol Framework specification notes:</p>
+   *
    * <blockquote>Note that [the derived keys] are all [{@link #getHashLength()}] bytes in length. Also note that the
    * [{@code deriveKeys}] function is simply HKDF from [IETF RFC 5869] with the chaining_key as HKDF salt, and
    * zero-length HKDF info.</blockquote>
