@@ -18,8 +18,8 @@ import javax.annotation.Nullable;
 import javax.crypto.AEADBadTagException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.security.*;
-import java.security.spec.InvalidKeySpecException;
 import java.security.spec.NamedParameterSpec;
 import java.util.List;
 import java.util.Spliterator;
@@ -192,19 +192,19 @@ class NoiseHandshakeTest {
   }
 
   @ParameterizedTest
-  @MethodSource
-  void cacophonyTests(final CacophonyTestVector testVector) throws InvalidKeySpecException, AEADBadTagException {
+  @MethodSource("cacophonyTestVectors")
+  void cacophonyTestsWithNewByteArray(final CacophonyTestVector testVector) throws AEADBadTagException {
     final NoiseHandshakePair handshakePair = buildHandshakePair(testVector);
 
     if (handshakePair.initiatorHandshake().isOneWayHandshake()) {
-      testOneWayHandshake(testVector, handshakePair);
+      testOneWayHandshakeWithNewByteArray(testVector, handshakePair);
     } else {
-      testInteractiveHandshake(testVector, handshakePair);
+      testInteractiveHandshakeWithNewByteArray(testVector, handshakePair);
     }
   }
 
-  private void testOneWayHandshake(final CacophonyTestVector testVector, final NoiseHandshakePair handshakePair)
-      throws InvalidKeySpecException, AEADBadTagException {
+  private void testOneWayHandshakeWithNewByteArray(final CacophonyTestVector testVector, final NoiseHandshakePair handshakePair)
+      throws AEADBadTagException {
 
     @Nullable NoiseTransportWriter transportWriter = null;
     @Nullable NoiseTransportReader transportReader = null;
@@ -227,7 +227,7 @@ class NoiseHandshakeTest {
     }
   }
 
-  private void testInteractiveHandshake(final CacophonyTestVector testVector, final NoiseHandshakePair handshakePair) throws AEADBadTagException, InvalidKeySpecException {
+  private void testInteractiveHandshakeWithNewByteArray(final CacophonyTestVector testVector, final NoiseHandshakePair handshakePair) throws AEADBadTagException {
     @Nullable NoiseTransport initiatorTransport = null;
     @Nullable NoiseTransport responderTransport = null;
 
@@ -264,7 +264,80 @@ class NoiseHandshakeTest {
     }
   }
 
-  private static Stream<Arguments> cacophonyTests() throws IOException {
+  @ParameterizedTest
+  @MethodSource("cacophonyTestVectors")
+  void cacophonyTestsWithNewByteBuffer(final CacophonyTestVector testVector) throws AEADBadTagException {
+    final NoiseHandshakePair handshakePair = buildHandshakePair(testVector);
+
+    if (handshakePair.initiatorHandshake().isOneWayHandshake()) {
+      testOneWayHandshakeWithNewByteBuffer(testVector, handshakePair);
+    } else {
+      testInteractiveHandshakeWithNewByteBuffer(testVector, handshakePair);
+    }
+  }
+
+  private void testOneWayHandshakeWithNewByteBuffer(final CacophonyTestVector testVector, final NoiseHandshakePair handshakePair)
+      throws AEADBadTagException {
+
+    @Nullable NoiseTransportWriter transportWriter = null;
+    @Nullable NoiseTransportReader transportReader = null;
+
+    for (final TestMessage message : testVector.messages()) {
+      if (transportWriter != null) {
+        // We've finished the handshake and the test messages are now transport messages
+        assertEquals(ByteBuffer.wrap(message.ciphertext()), transportWriter.writeMessage(ByteBuffer.wrap(message.payload())));
+        assertEquals(ByteBuffer.wrap(message.payload()), transportReader.readMessage(ByteBuffer.wrap(message.ciphertext())));
+      } else {
+        // The handshake isn't done and more handshake messages are expected
+        assertEquals(ByteBuffer.wrap(message.ciphertext()), handshakePair.initiatorHandshake().writeMessage(ByteBuffer.wrap(message.payload())));
+        assertEquals(ByteBuffer.wrap(message.payload()), handshakePair.responderHandshake().readMessage(ByteBuffer.wrap(message.ciphertext())));
+      }
+
+      if (handshakePair.initiatorHandshake().isDone() && transportWriter == null) {
+        transportWriter = handshakePair.initiatorHandshake().toTransportWriter();
+        transportReader = handshakePair.responderHandshake().toTransportReader();
+      }
+    }
+  }
+
+  private void testInteractiveHandshakeWithNewByteBuffer(final CacophonyTestVector testVector, final NoiseHandshakePair handshakePair) throws AEADBadTagException {
+    @Nullable NoiseTransport initiatorTransport = null;
+    @Nullable NoiseTransport responderTransport = null;
+
+    for (int i = 0; i < testVector.messages().size(); i++) {
+      final TestMessage testMessage = testVector.messages().get(i);
+
+      final NoiseHandshake senderHandshake =
+          i % 2 == 0 ? handshakePair.initiatorHandshake() : handshakePair.responderHandshake();
+
+      final NoiseHandshake receiverHandshake =
+          i % 2 == 0 ? handshakePair.responderHandshake() : handshakePair.initiatorHandshake();
+
+      @Nullable final NoiseTransport senderTransport = i % 2 == 0 ? initiatorTransport : responderTransport;
+      @Nullable final NoiseTransport receiverTransport = i % 2 == 0 ? responderTransport : initiatorTransport;
+
+      if (senderTransport != null && receiverTransport != null) {
+        // This is a transport message, not a handshake message
+        assertEquals(ByteBuffer.wrap(testMessage.ciphertext()), senderTransport.writeMessage(ByteBuffer.wrap(testMessage.payload())));
+        assertEquals(ByteBuffer.wrap(testMessage.payload()), receiverTransport.readMessage(ByteBuffer.wrap(testMessage.ciphertext())));
+      } else {
+        assertTrue(senderHandshake.isExpectingWrite());
+        assertTrue(receiverHandshake.isExpectingRead());
+
+        assertEquals(ByteBuffer.wrap(testMessage.ciphertext()), senderHandshake.writeMessage(ByteBuffer.wrap(testMessage.payload())));
+        assertEquals(ByteBuffer.wrap(testMessage.payload()), receiverHandshake.readMessage(ByteBuffer.wrap(testMessage.ciphertext())));
+      }
+
+      if (handshakePair.initiatorHandshake().isDone() && initiatorTransport == null) {
+        assertTrue(handshakePair.responderHandshake().isDone());
+
+        initiatorTransport = handshakePair.initiatorHandshake().toTransport();
+        responderTransport = handshakePair.responderHandshake().toTransport();
+      }
+    }
+  }
+
+  private static Stream<Arguments> cacophonyTestVectors() throws IOException {
     final InputStream testVectorInputStream = NoiseHandshakeTest.class.getResourceAsStream("cacophony-test-vectors.json");
 
     if (testVectorInputStream == null) {
@@ -352,8 +425,8 @@ class NoiseHandshakeTest {
   }
 
   @ParameterizedTest
-  @MethodSource
-  void fallbackTests(final NoiseCFallbackTestVector testVector) throws InvalidKeySpecException, AEADBadTagException, NoSuchPatternException {
+  @MethodSource("fallbackTestVectors")
+  void fallbackTestsWithNewByteArray(final NoiseCFallbackTestVector testVector) throws AEADBadTagException, NoSuchPatternException {
     Assumptions.assumeTrue(testVector.messages().size() >= 2,
         "Fallback test vectors must contain at least two messages");
 
@@ -423,7 +496,79 @@ class NoiseHandshakeTest {
     }
   }
 
-  private static Stream<Arguments> fallbackTests() throws IOException {
+  @ParameterizedTest
+  @MethodSource("fallbackTestVectors")
+  void fallbackTestsWithNewByteBuffer(final NoiseCFallbackTestVector testVector) throws AEADBadTagException, NoSuchPatternException {
+    Assumptions.assumeTrue(testVector.messages().size() >= 2,
+        "Fallback test vectors must contain at least two messages");
+
+    final NoiseHandshake ikInitiatorHandshake, ikResponderHandshake;
+    {
+      final NoiseHandshakePair ikHandshakePair = buildHandshakePair(testVector);
+
+      ikInitiatorHandshake = ikHandshakePair.initiatorHandshake();
+      ikResponderHandshake = ikHandshakePair.responderHandshake();
+    }
+
+    {
+      final TestMessage ikMessage = testVector.messages().get(0);
+
+      assertEquals(ByteBuffer.wrap(ikMessage.ciphertext()), ikInitiatorHandshake.writeMessage(ByteBuffer.wrap(ikMessage.payload())));
+      assertThrows(AEADBadTagException.class, () -> ikResponderHandshake.readMessage(ByteBuffer.wrap(ikMessage.ciphertext())));
+    }
+
+    final NoiseHandshake xxFallbackResponderHandshake = ikResponderHandshake.fallbackTo("XXfallback");
+    assertTrue(xxFallbackResponderHandshake.isExpectingWrite());
+
+    final NoiseHandshake xxFallbackInitiatorHandshake;
+    {
+      final TestMessage xxFallbackMessage = testVector.messages().get(1);
+
+      assertEquals(ByteBuffer.wrap(xxFallbackMessage.ciphertext()), xxFallbackResponderHandshake.writeMessage(ByteBuffer.wrap(xxFallbackMessage.payload())));
+      assertThrows(AEADBadTagException.class, () -> ikInitiatorHandshake.readMessage(ByteBuffer.wrap(xxFallbackMessage.ciphertext())));
+
+      xxFallbackInitiatorHandshake = ikInitiatorHandshake.fallbackTo("XXfallback");
+      assertTrue(xxFallbackInitiatorHandshake.isExpectingRead());
+      assertEquals(ByteBuffer.wrap(xxFallbackMessage.payload()), xxFallbackInitiatorHandshake.readMessage(ByteBuffer.wrap(xxFallbackMessage.ciphertext())));
+    }
+
+    @Nullable NoiseTransport initiatorTransport = null;
+    @Nullable NoiseTransport responderTransport = null;
+
+    for (int i = 2; i < testVector.messages().size(); i++) {
+      final TestMessage testMessage = testVector.messages().get(i);
+
+      final NoiseHandshake senderHandshake =
+          i % 2 == 0 ? xxFallbackInitiatorHandshake : xxFallbackResponderHandshake;
+
+      final NoiseHandshake receiverHandshake =
+          i % 2 == 0 ? xxFallbackResponderHandshake : xxFallbackInitiatorHandshake;
+
+      @Nullable final NoiseTransport senderTransport = i % 2 == 0 ? initiatorTransport : responderTransport;
+      @Nullable final NoiseTransport receiverTransport = i % 2 == 0 ? responderTransport : initiatorTransport;
+
+      if (senderTransport != null && receiverTransport != null) {
+        // This is a transport message, not a handshake message
+        assertEquals(ByteBuffer.wrap(testMessage.ciphertext()), senderTransport.writeMessage(ByteBuffer.wrap(testMessage.payload())));
+        assertEquals(ByteBuffer.wrap(testMessage.payload()), receiverTransport.readMessage(ByteBuffer.wrap(testMessage.ciphertext())));
+      } else {
+        assertTrue(senderHandshake.isExpectingWrite());
+        assertTrue(receiverHandshake.isExpectingRead());
+
+        assertEquals(ByteBuffer.wrap(testMessage.ciphertext()), senderHandshake.writeMessage(ByteBuffer.wrap(testMessage.payload())));
+        assertEquals(ByteBuffer.wrap(testMessage.payload()), receiverHandshake.readMessage(ByteBuffer.wrap(testMessage.ciphertext())));
+      }
+
+      if (xxFallbackInitiatorHandshake.isDone() && initiatorTransport == null) {
+        assertTrue(xxFallbackResponderHandshake.isDone());
+
+        initiatorTransport = xxFallbackInitiatorHandshake.toTransport();
+        responderTransport = xxFallbackResponderHandshake.toTransport();
+      }
+    }
+  }
+
+  private static Stream<Arguments> fallbackTestVectors() throws IOException {
     final InputStream testVectorInputStream = NoiseHandshakeTest.class.getResourceAsStream("noise-c-fallback-test-vectors.json");
 
     if (testVectorInputStream == null) {

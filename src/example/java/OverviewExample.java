@@ -22,8 +22,8 @@ public class OverviewExample {
         .setComponentsFromProtocolName("Noise_NN_25519_AESGCM_SHA256")
         .build();
 
-    responderHandshake.readMessage(initiatorHandshake.writeMessage(null));
-    initiatorHandshake.readMessage(responderHandshake.writeMessage(null));
+    responderHandshake.readMessage(initiatorHandshake.writeMessage((byte[]) null));
+    initiatorHandshake.readMessage(responderHandshake.writeMessage((byte[]) null));
 
     // @start region="transport-messages"
     final NoiseTransport initiatorTransport = initiatorHandshake.toTransport();

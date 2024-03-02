@@ -7,12 +7,13 @@ import com.eatthepath.noise.component.NoiseKeyAgreement;
 import javax.annotation.Nullable;
 import javax.crypto.AEADBadTagException;
 import javax.crypto.ShortBufferException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.*;
-import java.security.spec.InvalidKeySpecException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * <p>A {@code NoiseHandshake} instance is responsible for encrypting and decrypting the messages that comprise a Noise
@@ -161,6 +162,7 @@ public class NoiseHandshake {
   private int currentPreSharedKey;
 
   private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
+  private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(EMPTY_BYTE_ARRAY);
 
   /**
    * An enumeration of roles within a Noise handshake.
@@ -382,6 +384,20 @@ public class NoiseHandshake {
     }
   }
 
+  private void mixHash(final ByteBuffer byteBuffer) {
+    final MessageDigest messageDigest = noiseHash.getMessageDigest();
+
+    try {
+      messageDigest.reset();
+      messageDigest.update(hash);
+      messageDigest.update(byteBuffer);
+      messageDigest.digest(hash, 0, hash.length);
+    } catch (final DigestException e) {
+      // This should never happen
+      throw new AssertionError(e);
+    }
+  }
+
   private void mixKeyAndHash(final byte[] preSharedKey) {
     final byte[][] derivedKeys = noiseHash.deriveKeys(chainingKey, preSharedKey, 3);
 
@@ -404,6 +420,14 @@ public class NoiseHandshake {
     return ciphertextLength;
   }
 
+  private int encryptAndHash(final ByteBuffer plaintext, final ByteBuffer ciphertext) throws ShortBufferException {
+    final int ciphertextLength = cipherState.encrypt(ByteBuffer.wrap(hash), plaintext, ciphertext);
+
+    mixHash(ciphertext.slice(ciphertext.position() - ciphertextLength, ciphertextLength));
+
+    return ciphertextLength;
+  }
+
   private int decryptAndHash(final byte[] ciphertext,
                              final int ciphertextOffset,
                              final int ciphertextLength,
@@ -414,6 +438,17 @@ public class NoiseHandshake {
         cipherState.decrypt(hash, 0, hash.length, ciphertext, ciphertextOffset, ciphertextLength, plaintext, plaintextOffset);
 
     mixHash(ciphertext, ciphertextOffset, ciphertextLength);
+
+    return plaintextLength;
+  }
+
+  private int decryptAndHash(final ByteBuffer ciphertext,
+                             final ByteBuffer plaintext) throws ShortBufferException, AEADBadTagException {
+
+    final int initialCiphertextPosition = ciphertext.position();
+    final int plaintextLength = cipherState.decrypt(ByteBuffer.wrap(hash), ciphertext, plaintext);
+
+    mixHash(ciphertext.slice(initialCiphertextPosition, ciphertext.position() - initialCiphertextPosition));
 
     return plaintextLength;
   }
@@ -717,6 +752,124 @@ public class NoiseHandshake {
   }
 
   /**
+   * <p>Writes the next Noise handshake message for this handshake instance, advancing this handshake's internal state.
+   * The returned message will include any key material specified by this handshake's current message pattern and either
+   * the plaintext or a ciphertext of the given payload.</p>
+   *
+   * <p>Note that the security properties for the optional payload vary by handshake pattern, message, and sender role.
+   * Callers are responsible for verifying that the security properties associated with ny handshake message are
+   * suitable for their use case.</p>
+   *
+   * @param payload the payload to include in this handshake message; may be {@code null}
+   *
+   * @return a new byte buffer containing the resulting handshake message
+   *
+   * @throws IllegalStateException if this handshake is not currently expecting to send a handshake message to its peer
+   *
+   * @see #isExpectingWrite()
+   * @see <a href="https://noiseprotocol.org/noise.html#payload-security-properties">The Noise Protocol Framework - Payload security properties</a>
+   */
+  public ByteBuffer writeMessage(@Nullable final ByteBuffer payload) {
+    final ByteBuffer message = ByteBuffer.allocate(getOutboundMessageLength(payload != null ? payload.remaining() : 0));
+
+    try {
+      writeMessage(payload, message);
+    } catch (final ShortBufferException e) {
+      // This should never happen for a buffer we control
+      throw new AssertionError(e);
+    }
+
+    return message.flip();
+  }
+
+  /**
+   * <p>Writes the next Noise handshake message for this handshake instance into the given buffer, advancing this
+   * handshake's internal state. The resulting message will include any key material specified by this handshake's
+   * current message pattern and either the plaintext or a ciphertext of the given payload.</p>
+   *
+   * <p>Note that the security properties for the optional payload vary by handshake pattern, message, and sender role.
+   * Callers are responsible for verifying that the security properties associated with ny handshake message are
+   * suitable for their use case.</p>
+   *
+   * <p>If provided, all {@code payload.remaining()} bytes starting at {@code payload.position()} are processed. Upon
+   * return, the payload buffer's position will be equal to its limit; its limit will not have changed. The message
+   * buffer's position will have advanced by n, where n is the value returned by this method; the message buffer's limit
+   * will not have changed.</p>
+   *
+   * @param payload a byte buffer containing the optional payload for this handshake message; may be {@code null}
+   * @param message a byte buffer into which to write the resulting handshake message
+   *
+   * @return the number of bytes written to {@code message}
+   *
+   * @throws IllegalStateException if this handshake is not currently expecting to send a handshake message to its peer
+   * @throws ShortBufferException if {@code message} does not have enough remaining capacity to hold the handshake
+   * message
+   *
+   * @see #isExpectingWrite()
+   * @see #getOutboundMessageLength(int)
+   * @see <a href="https://noiseprotocol.org/noise.html#payload-security-properties">The Noise Protocol Framework -
+   * Payload security properties</a>
+   */
+  public int writeMessage(@Nullable final ByteBuffer payload,
+                          final ByteBuffer message) throws ShortBufferException {
+
+    // TODO Check message buffer length, or just let plumbing deeper down complain?
+
+    if (!isExpectingWrite()) {
+      throw new IllegalStateException("Handshake not currently expecting to write a message");
+    }
+
+    int bytesWritten = 0;
+
+    final HandshakePattern.MessagePattern messagePattern =
+        handshakePattern.getHandshakeMessagePatterns()[currentMessagePattern];
+
+    for (final HandshakePattern.Token token : messagePattern.tokens()) {
+      switch (token) {
+        case E -> {
+          // Ephemeral keys may be specified in advance for "fallback" patterns and for testing, and so may not
+          // necessarily be null at this point.
+          if (localEphemeralKeyPair == null) {
+            localEphemeralKeyPair = keyAgreement.generateKeyPair();
+          }
+
+          final byte[] ephemeralKeyBytes = keyAgreement.serializePublicKey(localEphemeralKeyPair.getPublic());
+          message.put(ephemeralKeyBytes);
+          bytesWritten += ephemeralKeyBytes.length;
+
+          mixHash(ephemeralKeyBytes);
+
+          if (handshakePattern.isPreSharedKeyHandshake()) {
+            mixKey(ephemeralKeyBytes);
+          }
+        }
+
+        case S -> {
+          if (localStaticKeyPair == null) {
+            throw new IllegalStateException("No local static public key available");
+          }
+
+          try {
+            bytesWritten +=
+                encryptAndHash(ByteBuffer.wrap(keyAgreement.serializePublicKey(localStaticKeyPair.getPublic())), message);
+          } catch (final ShortBufferException e) {
+            // This should never happen for buffers we control
+            throw new AssertionError("Short buffer for static key component", e);
+          }
+        }
+
+        case EE, ES, SE, SS, PSK -> handleMixKeyToken(token);
+      }
+    }
+
+    bytesWritten += encryptAndHash(Objects.requireNonNullElse(payload, EMPTY_BYTE_BUFFER), message);
+
+    currentMessagePattern += 1;
+
+    return bytesWritten;
+  }
+
+  /**
    * Reads the next handshake message, advancing this handshake's internal state.
    *
    * @param message the handshake message to read
@@ -820,6 +973,108 @@ public class NoiseHandshake {
     currentMessagePattern += 1;
 
     return decryptAndHash(message, offset, messageLength - offset, payload, payloadOffset);
+  }
+
+  /**
+   * Reads the next handshake message, advancing this handshake's internal state.
+   *
+   * @param message the handshake message to read
+   *
+   * @return a new byte buffer containing the plaintext of the payload included in the handshake message; may be empty
+   *
+   * @throws AEADBadTagException if the AEAD tag for any encrypted component of the given handshake message does not
+   * match the calculated value
+   * @throws IllegalArgumentException if the given message is too short to contain the expected handshake message
+   */
+  public ByteBuffer readMessage(final ByteBuffer message) throws AEADBadTagException {
+    final ByteBuffer payload = ByteBuffer.allocate(getPayloadLength(message.remaining()));
+
+    try {
+      readMessage(message, payload);
+    } catch (final ShortBufferException e) {
+      // This should never happen for a buffer we control
+      throw new AssertionError(e);
+    }
+
+    return payload.flip();
+  }
+
+  /**
+   * <p>Reads the next handshake message, writing the plaintext of the message's payload into the given buffer and
+   * advancing this handshake's internal state.</p>
+   *
+   * <p>All {@code message.remaining()} bytes starting at {@code message.position()} are processed. Upon return,
+   * the message buffer's position will be equal to its limit; its limit will not have changed. The payload buffer's
+   * position will have advanced by n, where n is the value returned by this method; the payload buffer's limit will not
+   * have changed.</p>
+   *
+   * @param message a byte buffer containing the handshake message to read
+   * @param payload a byte buffer into which to write the plaintext of the payload included in the given handshake
+   * message
+   *
+   * @return the number of bytes written to {@code payload}
+   *
+   * @throws AEADBadTagException if the AEAD tag for any encrypted component of the given handshake message does not
+   * match the calculated value
+   * @throws ShortBufferException if {@code payload} does not have enough remaining capacity to hold the plaintext of
+   * the payload included in the given handshake message
+   * @throws IllegalArgumentException if the given message is too short to contain the expected handshake message
+   *
+   * @see #getPayloadLength(int)
+   */
+  public int readMessage(final ByteBuffer message,
+                         final ByteBuffer payload) throws ShortBufferException, AEADBadTagException {
+
+    if (!isExpectingRead()) {
+      throw new IllegalStateException("Handshake not currently expecting to read a message");
+    }
+
+    final HandshakePattern.MessagePattern messagePattern =
+        handshakePattern.getHandshakeMessagePatterns()[currentMessagePattern];
+
+    for (final HandshakePattern.Token token : messagePattern.tokens()) {
+      switch (token) {
+        case E -> {
+          if (remoteEphemeralPublicKey != null) {
+            throw new IllegalStateException("Remote ephemeral key already set");
+          }
+
+          final byte[] ephemeralKeyBytes = new byte[keyAgreement.getPublicKeyLength()];
+          message.get(ephemeralKeyBytes);
+
+          remoteEphemeralPublicKey = keyAgreement.deserializePublicKey(ephemeralKeyBytes);
+
+          mixHash(ephemeralKeyBytes);
+
+          if (handshakePattern.isPreSharedKeyHandshake()) {
+            mixKey(ephemeralKeyBytes);
+          }
+        }
+
+        case S -> {
+          if (remoteStaticPublicKey != null) {
+            throw new IllegalStateException("Remote static key already set");
+          }
+
+          final int staticKeyCiphertextLength = keyAgreement.getPublicKeyLength() + (cipherState.hasKey() ? 16 : 0);
+          final byte[] staticKeyBytes = new byte[keyAgreement.getPublicKeyLength()];
+
+          final ByteBuffer staticKeyCiphertextSlice = message.slice(message.position(), staticKeyCiphertextLength);
+          decryptAndHash(staticKeyCiphertextSlice, ByteBuffer.wrap(staticKeyBytes));
+
+          // Operating on a slice doesn't advance the main buffer's position; do so manually instead
+          message.position(message.position() + staticKeyCiphertextLength);
+
+          remoteStaticPublicKey = keyAgreement.deserializePublicKey(staticKeyBytes);
+        }
+
+        case EE, ES, SE, SS, PSK -> handleMixKeyToken(token);
+      }
+    }
+
+    currentMessagePattern += 1;
+
+    return decryptAndHash(message, payload);
   }
 
   private void handleMixKeyToken(final HandshakePattern.Token token) {

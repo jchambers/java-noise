@@ -27,11 +27,11 @@ public class NoisePackageExample {
 
     // @start region="handshake-messages"
     // -> e (with no additional payload)
-    final byte[] eMessage = initiatorHandshake.writeMessage(null);
+    final byte[] eMessage = initiatorHandshake.writeMessage((byte[]) null);
     responderHandshake.readMessage(eMessage);
 
     // <- e, ee (with no additional payload)
-    final byte[] eEeMessage = responderHandshake.writeMessage(null);
+    final byte[] eEeMessage = responderHandshake.writeMessage((byte[]) null);
     initiatorHandshake.readMessage(eEeMessage);
 
     // At this point, the handshake is finished, and we can "split" the handshake into a Noise transport

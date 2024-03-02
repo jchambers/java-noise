@@ -26,11 +26,11 @@ public class NoiseHandshakeExample {
         .build();
 
     // -> e (with an empty payload)
-    final byte[] initiatorEMessage = initiatorHandshake.writeMessage(null);
+    final byte[] initiatorEMessage = initiatorHandshake.writeMessage((byte[]) null);
     responderHandshake.readMessage(initiatorEMessage);
 
     // <- e, ee (with an empty payload)
-    final byte[] responderEEeMessage = responderHandshake.writeMessage(null);
+    final byte[] responderEEeMessage = responderHandshake.writeMessage((byte[]) null);
     initiatorHandshake.readMessage(responderEEeMessage);
 
     assert initiatorHandshake.isDone();
@@ -59,7 +59,7 @@ public class NoiseHandshakeExample {
         .build();
 
     // -> e, es (with an empty payload)
-    final byte[] initiatorEphemeralKeyMessage = initiatorHandshake.writeMessage(null);
+    final byte[] initiatorEphemeralKeyMessage = initiatorHandshake.writeMessage((byte[]) null);
     responderHandshake.readMessage(initiatorEphemeralKeyMessage);
 
     assert initiatorHandshake.isDone();
@@ -93,7 +93,7 @@ public class NoiseHandshakeExample {
     assertThrows(AEADBadTagException.class, () -> {
       // @start region="send-initiator-static-key-message"
       // -> e, es, s, ss (with an empty payload)
-      final byte[] initiatorStaticKeyMessage = ikInitiatorHandshake.writeMessage(null);
+      final byte[] initiatorStaticKeyMessage = ikInitiatorHandshake.writeMessage((byte[]) null);
 
       // Throws an AEADBadTagException because the initiator has a stale static key for the responder
       ikResponderHandshake.readMessage(initiatorStaticKeyMessage);
@@ -105,7 +105,7 @@ public class NoiseHandshakeExample {
         ikResponderHandshake.fallbackTo("XXfallback");
 
     // <- e, ee, s, es (with an empty payload)
-    final byte[] responderStaticKeyMessage = xxFallbackResponderHandshake.writeMessage(null);
+    final byte[] responderStaticKeyMessage = xxFallbackResponderHandshake.writeMessage((byte[]) null);
     // @end
 
     assertThrows(AEADBadTagException.class, () -> {
@@ -122,7 +122,7 @@ public class NoiseHandshakeExample {
     xxFallbackInitiatorHandshake.readMessage(responderStaticKeyMessage);
 
     final byte[] initiatorFallbackStaticKeyMessage =
-        xxFallbackInitiatorHandshake.writeMessage(null);
+        xxFallbackInitiatorHandshake.writeMessage((byte[]) null);
 
     xxFallbackResponderHandshake.readMessage(initiatorFallbackStaticKeyMessage);
 

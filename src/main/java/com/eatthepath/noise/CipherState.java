@@ -55,7 +55,7 @@ class CipherState {
       throw new AssertionError(e);
     }
 
-    return plaintext;
+    return plaintext.flip();
   }
 
   public int decrypt(@Nullable final ByteBuffer associatedData, final ByteBuffer ciphertext, final ByteBuffer plaintext)
@@ -133,7 +133,7 @@ class CipherState {
       throw new AssertionError(e);
     }
 
-    return ciphertext;
+    return ciphertext.flip();
   }
 
   public int encrypt(@Nullable final ByteBuffer associatedData, final ByteBuffer plaintext, final ByteBuffer ciphertext) throws ShortBufferException {
