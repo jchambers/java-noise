@@ -554,6 +554,24 @@ public class NoiseHandshake {
     return ciphertextLength - emptyPayloadMessageLength;
   }
 
+  /**
+   * <p>Writes the next Noise handshake message for this handshake instance, advancing this handshake's internal state.
+   * The returned message will include any key material specified by this handshake's current message pattern and either
+   * the plaintext or a ciphertext of the given payload.</p>
+   *
+   * <p>Note that the security properties for the optional payload vary by handshake pattern, message, and sender role.
+   * Callers are responsible for verifying that the security properties associated with ny handshake message are
+   * suitable for their use case.</p>
+   *
+   * @param payload the payload to include in this handshake message; may be {@code null}
+   *
+   * @return a new byte array containing the resulting handshake message
+   *
+   * @throws IllegalStateException if this handshake is not currently expecting to send a handshake message to its peer
+   *
+   * @see #isExpectingWrite()
+   * @see <a href="https://noiseprotocol.org/noise.html#payload-security-properties">The Noise Protocol Framework - Payload security properties</a>
+   */
   public byte[] writeMessage(@Nullable final byte[] payload) {
     // TODO Verify that message size is within bounds
     final int payloadLength = payload != null ? payload.length : 0;
@@ -570,6 +588,32 @@ public class NoiseHandshake {
     return message;
   }
 
+  /**
+   * <p>Writes the next Noise handshake message for this handshake instance into the given array, advancing this
+   * handshake's internal state. The resulting message will include any key material specified by this handshake's
+   * current message pattern and either the plaintext or a ciphertext of the given payload.</p>
+   *
+   * <p>Note that the security properties for the optional payload vary by handshake pattern, message, and sender role.
+   * Callers are responsible for verifying that the security properties associated with ny handshake message are
+   * suitable for their use case.</p>
+   *
+   * @param message a byte array into which to write the resulting handshake message
+   * @param messageOffset the position within {@code message} at which to begin writing the handshake message
+   * @param payload a byte array containing the optional payload for this handshake message; may be {@code null}
+   * @param payloadOffset the offset within {@code payload} where the payload begins; ignored if {@code payload} is
+   * {@code null}
+   * @param payloadLength the length of the payload within {@code payload}
+   *
+   * @return the number of bytes written to {@code message}
+   *
+   * @throws IllegalStateException if this handshake is not currently expecting to send a handshake message to its peer
+   * @throws ShortBufferException if {@code message} is not large enough (after its offset) to hold the handshake
+   * message
+   *
+   * @see #isExpectingWrite()
+   * @see #getOutboundMessageLength(int) 
+   * @see <a href="https://noiseprotocol.org/noise.html#payload-security-properties">The Noise Protocol Framework - Payload security properties</a>
+   */
   public int writeMessage(final byte[] message,
                           final int messageOffset,
                           @Nullable final byte[] payload,
@@ -637,6 +681,18 @@ public class NoiseHandshake {
     return offset;
   }
 
+  /**
+   * Reads the next handshake message, advancing this handshake's internal state.
+   *
+   * @param message the handshake message to read
+   *
+   * @return a byte array containing the plaintext of the payload included in the handshake message; may be empty
+   *
+   * @throws InvalidKeySpecException
+   * @throws AEADBadTagException if the AEAD tag for any encrypted component of the given handshake message does not
+   * match the calculated value
+   * @throws IllegalArgumentException if the given message is too short to contain the expected handshake message
+   */
   public byte[] readMessage(final byte[] message) throws InvalidKeySpecException, AEADBadTagException {
     final byte[] payload = new byte[getPayloadLength(message.length)];
 
@@ -651,6 +707,28 @@ public class NoiseHandshake {
     return payload;
   }
 
+  /**
+   * Reads the next handshake message, writing the plaintext of the message's payload into the given array and advancing
+   * this handshake's internal state.
+   *
+   * @param message a byte array containing the handshake message to read
+   * @param messageOffset the position within {@code message} at which the handshake message begins
+   * @param messageLength the length of the handshake message within {@code message}
+   * @param payload a byte array into which to write the plaintext of the payload included in the given handshake
+   * message
+   * @param payloadOffset the position within {@code payload} at which to begin writing the payload
+   *
+   * @return a byte array containing the plaintext of the payload included in the handshake message; may be empty
+   *
+   * @throws InvalidKeySpecException
+   * @throws AEADBadTagException if the AEAD tag for any encrypted component of the given handshake message does not
+   * match the calculated value
+   * @throws ShortBufferException if {@code payload} is too short (after its offset) to hold the plaintext of the
+   * payload included in the given handshake message
+   * @throws IllegalArgumentException if the given message is too short to contain the expected handshake message
+   * 
+   * @see #getPayloadLength(int) 
+   */
   public int readMessage(final byte[] message,
                          final int messageOffset,
                          final int messageLength,
