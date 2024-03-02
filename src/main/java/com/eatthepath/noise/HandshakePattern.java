@@ -408,8 +408,6 @@ public class HandshakePattern {
           handshakePattern = null;
         }
 
-        HandshakePatternValidator.validate(handshakePattern);
-
         return handshakePattern;
       } catch (final IllegalArgumentException e) {
         return null;
