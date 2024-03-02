@@ -522,7 +522,7 @@ class NoiseHandshakeTest {
       final NoiseKeyAgreement noiseKeyAgreement = NoiseKeyAgreement.getInstance(keyAgreementName);
 
       return noiseKeyAgreement.deserializePublicKey(publicKeyBytes);
-    } catch (final NoSuchAlgorithmException | InvalidKeySpecException e) {
+    } catch (final NoSuchAlgorithmException e) {
       throw new RuntimeException(e);
     }
   }

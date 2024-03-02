@@ -1,9 +1,7 @@
 package com.eatthepath.noise.component;
 
 import javax.crypto.KeyAgreement;
-import java.security.KeyFactory;
-import java.security.KeyPairGenerator;
-import java.security.NoSuchAlgorithmException;
+import java.security.*;
 import java.util.HexFormat;
 
 class X448KeyAgreement extends AbstractXECKeyAgreement {

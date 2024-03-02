@@ -11,7 +11,6 @@ abstract class AbstractXECKeyAgreement implements NoiseKeyAgreement {
   private final KeyPairGenerator keyPairGenerator;
   private final KeyFactory keyFactory;
 
-
   protected AbstractXECKeyAgreement(final KeyAgreement keyAgreement,
                           final KeyPairGenerator keyPairGenerator,
                           final KeyFactory keyFactory) {
@@ -29,10 +28,14 @@ abstract class AbstractXECKeyAgreement implements NoiseKeyAgreement {
   }
 
   @Override
-  public byte[] generateSecret(final PrivateKey privateKey, final PublicKey publicKey) throws InvalidKeyException {
-    keyAgreement.init(privateKey);
-    keyAgreement.doPhase(publicKey, true);
-    return keyAgreement.generateSecret();
+  public byte[] generateSecret(final PrivateKey privateKey, final PublicKey publicKey) {
+    try {
+      keyAgreement.init(privateKey);
+      keyAgreement.doPhase(publicKey, true);
+      return keyAgreement.generateSecret();
+    } catch (final InvalidKeyException e) {
+      throw new IllegalArgumentException(e);
+    }
   }
 
   @Override
@@ -45,7 +48,7 @@ abstract class AbstractXECKeyAgreement implements NoiseKeyAgreement {
   }
 
   @Override
-  public PublicKey deserializePublicKey(final byte[] publicKeyBytes) throws InvalidKeySpecException {
+  public PublicKey deserializePublicKey(final byte[] publicKeyBytes) {
     // TODO This is a pretty hacky way of dealing with key deserialization; come back to this with a real decoder
     final int publicKeyLength = getPublicKeyLength();
 
@@ -58,6 +61,22 @@ abstract class AbstractXECKeyAgreement implements NoiseKeyAgreement {
     System.arraycopy(x509Prefix, 0, x509Bytes, 0, x509Prefix.length);
     System.arraycopy(publicKeyBytes, 0, x509Bytes, x509Prefix.length, publicKeyLength);
 
-    return keyFactory.generatePublic(new X509EncodedKeySpec(x509Bytes, keyFactory.getAlgorithm()));
+    try {
+      return keyFactory.generatePublic(new X509EncodedKeySpec(x509Bytes, keyFactory.getAlgorithm()));
+    } catch (final InvalidKeySpecException e) {
+      throw new IllegalArgumentException("Invalid key", e);
+    }
+  }
+
+  @Override
+  public void checkPublicKey(final PublicKey publicKey) throws InvalidKeyException {
+    checkKeyPair(new KeyPair(publicKey, generateKeyPair().getPrivate()));
+  }
+
+  @Override
+  public void checkKeyPair(final KeyPair keyPair) throws InvalidKeyException {
+    keyAgreement.init(keyPair.getPrivate());
+    keyAgreement.doPhase(keyPair.getPublic(), true);
+    keyAgreement.generateSecret();
   }
 }

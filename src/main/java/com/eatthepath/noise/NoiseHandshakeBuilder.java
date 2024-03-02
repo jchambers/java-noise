@@ -183,8 +183,6 @@ public class NoiseHandshakeBuilder {
       throw new IllegalArgumentException("Must set a key agreement algorithm before building a Noise handshake");
     }
 
-    // TODO Check key compatibility
-
     return new NoiseHandshake(role,
         handshakePattern,
         keyAgreement,

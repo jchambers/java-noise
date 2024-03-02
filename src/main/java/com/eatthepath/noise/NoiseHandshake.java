@@ -200,6 +200,12 @@ public class NoiseHandshake {
       if (localStaticKeyPair == null) {
         throw new IllegalArgumentException(handshakePattern.getName() + " handshake pattern requires a local static key pair for " + role + " role");
       }
+
+      try {
+        keyAgreement.checkKeyPair(localStaticKeyPair);
+      } catch (final InvalidKeyException e) {
+        throw new IllegalArgumentException("Incompatible local static key pair", e);
+      }
     } else {
       if (localStaticKeyPair != null) {
         throw new IllegalArgumentException(handshakePattern.getName() + " handshake pattern does not allow a local static key pair for " + role + " role");
@@ -210,9 +216,31 @@ public class NoiseHandshake {
       if (remoteStaticPublicKey == null) {
         throw new IllegalArgumentException(handshakePattern.getName() + " handshake pattern requires a remote static public key for " + role + " role");
       }
+
+      try {
+        keyAgreement.checkPublicKey(remoteStaticPublicKey);
+      } catch (final InvalidKeyException e) {
+        throw new IllegalArgumentException("Incompatible remote static public key", e);
+      }
     } else {
       if (remoteStaticPublicKey != null) {
         throw new IllegalArgumentException(handshakePattern.getName() + " handshake pattern does not allow a remote static public key for " + role + " role");
+      }
+    }
+
+    if (handshakePattern.requiresRemoteEphemeralPublicKey(role)) {
+      if (remoteEphemeralPublicKey == null) {
+        throw new IllegalArgumentException(handshakePattern.getName() + " handshake pattern requires a remote ephemeral public key for " + role + " role");
+      }
+
+      try {
+        keyAgreement.checkPublicKey(remoteEphemeralPublicKey);
+      } catch (final InvalidKeyException e) {
+        throw new IllegalArgumentException("Incompatible remote ephemeral public key", e);
+      }
+    } else {
+      if (remoteEphemeralPublicKey != null) {
+        throw new IllegalArgumentException(handshakePattern.getName() + " handshake pattern does not allow a remote ephemeral public key for " + role + " role");
       }
     }
 
@@ -232,9 +260,16 @@ public class NoiseHandshake {
       }
     }
 
+    if (localEphemeralKeyPair != null) {
+      try {
+        keyAgreement.checkKeyPair(localEphemeralKeyPair);
+      } catch (final InvalidKeyException e) {
+        throw new IllegalArgumentException("Invalid local ephemeral key pair", e);
+      }
+    }
+
     this.prologue = prologue;
 
-    // TODO Validate key compatibility
     this.localStaticKeyPair = localStaticKeyPair;
     this.localEphemeralKeyPair = localEphemeralKeyPair;
     this.remoteStaticPublicKey = remoteStaticPublicKey;
@@ -688,12 +723,11 @@ public class NoiseHandshake {
    *
    * @return a byte array containing the plaintext of the payload included in the handshake message; may be empty
    *
-   * @throws InvalidKeySpecException
    * @throws AEADBadTagException if the AEAD tag for any encrypted component of the given handshake message does not
    * match the calculated value
    * @throws IllegalArgumentException if the given message is too short to contain the expected handshake message
    */
-  public byte[] readMessage(final byte[] message) throws InvalidKeySpecException, AEADBadTagException {
+  public byte[] readMessage(final byte[] message) throws AEADBadTagException {
     final byte[] payload = new byte[getPayloadLength(message.length)];
 
     try {
@@ -720,7 +754,6 @@ public class NoiseHandshake {
    *
    * @return a byte array containing the plaintext of the payload included in the handshake message; may be empty
    *
-   * @throws InvalidKeySpecException
    * @throws AEADBadTagException if the AEAD tag for any encrypted component of the given handshake message does not
    * match the calculated value
    * @throws ShortBufferException if {@code payload} is too short (after its offset) to hold the plaintext of the
@@ -733,7 +766,7 @@ public class NoiseHandshake {
                          final int messageOffset,
                          final int messageLength,
                          final byte[] payload,
-                         final int payloadOffset) throws InvalidKeySpecException, ShortBufferException, AEADBadTagException {
+                         final int payloadOffset) throws ShortBufferException, AEADBadTagException {
 
     if (!isExpectingRead()) {
       throw new IllegalStateException("Handshake not currently expecting to read a message");
@@ -790,100 +823,94 @@ public class NoiseHandshake {
   }
 
   private void handleMixKeyToken(final HandshakePattern.Token token) {
-    try {
-      switch (token) {
-        case EE -> {
-          if (localEphemeralKeyPair == null) {
-            throw new IllegalStateException("No local ephemeral key available");
-          }
-
-          if (remoteEphemeralPublicKey == null) {
-            throw new IllegalStateException("No remote ephemeral key available");
-          }
-
-          mixKey(keyAgreement.generateSecret(localEphemeralKeyPair.getPrivate(), remoteEphemeralPublicKey));
+    switch (token) {
+      case EE -> {
+        if (localEphemeralKeyPair == null) {
+          throw new IllegalStateException("No local ephemeral key available");
         }
 
-        case ES -> {
-          switch (role) {
-            case INITIATOR -> {
-              if (localEphemeralKeyPair == null) {
-                throw new IllegalStateException("No local ephemeral key available");
-              }
-
-              if (remoteStaticPublicKey == null) {
-                throw new IllegalStateException("No remote static key available");
-              }
-
-              mixKey(keyAgreement.generateSecret(localEphemeralKeyPair.getPrivate(), remoteStaticPublicKey));
-            }
-            case RESPONDER -> {
-              if (localStaticKeyPair == null) {
-                throw new IllegalStateException("No local static key available");
-              }
-
-              if (remoteEphemeralPublicKey == null) {
-                throw new IllegalStateException("No remote ephemeral key available");
-              }
-
-              mixKey(keyAgreement.generateSecret(localStaticKeyPair.getPrivate(), remoteEphemeralPublicKey));
-            }
-          }
+        if (remoteEphemeralPublicKey == null) {
+          throw new IllegalStateException("No remote ephemeral key available");
         }
 
-        case SE -> {
-          switch (role) {
-            case INITIATOR -> {
-              if (localStaticKeyPair == null) {
-                throw new IllegalStateException("No local static key available");
-              }
-
-              if (remoteEphemeralPublicKey == null) {
-                throw new IllegalStateException("No remote ephemeral key available");
-              }
-
-              mixKey(keyAgreement.generateSecret(localStaticKeyPair.getPrivate(), remoteEphemeralPublicKey));
-            }
-            case RESPONDER -> {
-              if (localEphemeralKeyPair == null) {
-                throw new IllegalStateException("No local ephemeral key available");
-              }
-
-              if (remoteStaticPublicKey == null) {
-                throw new IllegalStateException("No remote static key available");
-              }
-
-              mixKey(keyAgreement.generateSecret(localEphemeralKeyPair.getPrivate(), remoteStaticPublicKey));
-            }
-          }
-        }
-
-        case SS -> {
-          if (localStaticKeyPair == null) {
-            throw new IllegalStateException("No local static key available");
-          }
-
-          if (remoteStaticPublicKey == null) {
-            throw new IllegalStateException("No remote static key available");
-          }
-
-          mixKey(keyAgreement.generateSecret(localStaticKeyPair.getPrivate(), remoteStaticPublicKey));
-        }
-
-        case PSK -> {
-          if (preSharedKeys == null || currentPreSharedKey >= preSharedKeys.size()) {
-            throw new IllegalStateException("No pre-shared key available");
-          }
-
-          mixKeyAndHash(preSharedKeys.get(currentPreSharedKey++));
-        }
-
-        default -> throw new IllegalArgumentException("Unexpected key-mixing token: " + token.name());
+        mixKey(keyAgreement.generateSecret(localEphemeralKeyPair.getPrivate(), remoteEphemeralPublicKey));
       }
-    } catch (final InvalidKeyException e) {
-      // This should never happen. All keys have been parsed and validated either at construction time or upon arrival
-      // from the other party.
-      throw new AssertionError(e);
+
+      case ES -> {
+        switch (role) {
+          case INITIATOR -> {
+            if (localEphemeralKeyPair == null) {
+              throw new IllegalStateException("No local ephemeral key available");
+            }
+
+            if (remoteStaticPublicKey == null) {
+              throw new IllegalStateException("No remote static key available");
+            }
+
+            mixKey(keyAgreement.generateSecret(localEphemeralKeyPair.getPrivate(), remoteStaticPublicKey));
+          }
+          case RESPONDER -> {
+            if (localStaticKeyPair == null) {
+              throw new IllegalStateException("No local static key available");
+            }
+
+            if (remoteEphemeralPublicKey == null) {
+              throw new IllegalStateException("No remote ephemeral key available");
+            }
+
+            mixKey(keyAgreement.generateSecret(localStaticKeyPair.getPrivate(), remoteEphemeralPublicKey));
+          }
+        }
+      }
+
+      case SE -> {
+        switch (role) {
+          case INITIATOR -> {
+            if (localStaticKeyPair == null) {
+              throw new IllegalStateException("No local static key available");
+            }
+
+            if (remoteEphemeralPublicKey == null) {
+              throw new IllegalStateException("No remote ephemeral key available");
+            }
+
+            mixKey(keyAgreement.generateSecret(localStaticKeyPair.getPrivate(), remoteEphemeralPublicKey));
+          }
+          case RESPONDER -> {
+            if (localEphemeralKeyPair == null) {
+              throw new IllegalStateException("No local ephemeral key available");
+            }
+
+            if (remoteStaticPublicKey == null) {
+              throw new IllegalStateException("No remote static key available");
+            }
+
+            mixKey(keyAgreement.generateSecret(localEphemeralKeyPair.getPrivate(), remoteStaticPublicKey));
+          }
+        }
+      }
+
+      case SS -> {
+        if (localStaticKeyPair == null) {
+          throw new IllegalStateException("No local static key available");
+        }
+
+        if (remoteStaticPublicKey == null) {
+          throw new IllegalStateException("No remote static key available");
+        }
+
+        mixKey(keyAgreement.generateSecret(localStaticKeyPair.getPrivate(), remoteStaticPublicKey));
+      }
+
+      case PSK -> {
+        if (preSharedKeys == null || currentPreSharedKey >= preSharedKeys.size()) {
+          throw new IllegalStateException("No pre-shared key available");
+        }
+
+        mixKeyAndHash(preSharedKeys.get(currentPreSharedKey++));
+      }
+
+      default -> throw new IllegalArgumentException("Unexpected key-mixing token: " + token.name());
     }
   }
 
