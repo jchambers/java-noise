@@ -15,8 +15,8 @@ public class NoiseHandshakeExample {
 
   @SuppressWarnings("unused")
   @Test
-  void bidirectionalExample() throws InvalidKeySpecException, AEADBadTagException, NoSuchAlgorithmException {
-    // @start region="bidirectional-handshake"
+  void interactiveExample() throws InvalidKeySpecException, AEADBadTagException, NoSuchAlgorithmException {
+    // @start region="interactive-handshake"
     final NoiseHandshake initiatorHandshake = NoiseHandshakeBuilder.forNNInitiator()
         .setComponentsFromProtocolName("Noise_NN_25519_AESGCM_SHA256")
         .build();

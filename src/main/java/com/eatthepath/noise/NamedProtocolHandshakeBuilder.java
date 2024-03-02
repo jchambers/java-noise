@@ -34,6 +34,8 @@ import java.util.Objects;
  * local static key pair:
  *
  * {@snippet file="NamedProtocolHandshakeBuilderExample.java" region="ik-handshake"}
+ *
+ * @see NoiseHandshakeBuilder
  */
 public class NamedProtocolHandshakeBuilder {
 

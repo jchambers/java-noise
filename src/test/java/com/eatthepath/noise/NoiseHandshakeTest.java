@@ -199,7 +199,7 @@ class NoiseHandshakeTest {
     if (handshakePair.initiatorHandshake().isOneWayHandshake()) {
       testOneWayHandshake(testVector, handshakePair);
     } else {
-      testBidirectionalHandshake(testVector, handshakePair);
+      testInteractiveHandshake(testVector, handshakePair);
     }
   }
 
@@ -227,7 +227,7 @@ class NoiseHandshakeTest {
     }
   }
 
-  private void testBidirectionalHandshake(final CacophonyTestVector testVector, final NoiseHandshakePair handshakePair) throws AEADBadTagException, InvalidKeySpecException {
+  private void testInteractiveHandshake(final CacophonyTestVector testVector, final NoiseHandshakePair handshakePair) throws AEADBadTagException, InvalidKeySpecException {
     @Nullable NoiseTransport initiatorTransport = null;
     @Nullable NoiseTransport responderTransport = null;
 

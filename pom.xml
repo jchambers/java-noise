@@ -77,6 +77,7 @@
                     <additionalOptions>--snippet-path ${project.basedir}/src/example/java</additionalOptions>
 
                     <excludePackageNames>com.eatthepath.noise.crypto</excludePackageNames>
+                    <overview>${basedir}/src/main/java/overview.html</overview>
                 </configuration>
             </plugin>
         </plugins>

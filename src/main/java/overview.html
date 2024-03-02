@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>java-noise</title>
+</head>
+
+<body>
+<p>java-noise is a Java implementation of the <a href="https://noiseprotocol.org/">Noise Protocol Framework</a>, which describes itself as:</p>
+
+<blockquote>…a framework for building crypto protocols. Noise protocols support mutual and optional authentication, identity hiding, forward secrecy, zero round-trip encryption, and other advanced features.</blockquote>
+
+<p>java-noise supports all handshake patterns, handshake pattern modifiers, and cryptographic algorithms enumerated in revision 34 of the <a href="https://noiseprotocol.org/noise.html">Noise Protocol Framework specification</a>. Some cryptographic algorithms depend on the presence of a security provider that provides an implementation of the named algorithm. In particular:</p>
+
+<ul>
+    <li>The "25519" key agreement algorithm requires that the JVM have a security provider that supports the "X25519" {@link javax.crypto.KeyAgreement} and {@link java.security.KeyPairGenerator} algorithms</li>
+    <li>The "448" key agreement algorithm requires that the JVM have a security provider that supports the "X448" {@link javax.crypto.KeyAgreement} and {@link java.security.KeyPairGenerator} algorithms</li>
+    <li>The "ChaChaPoly" cipher algorithm requires that the JVM have a security provider that supports the "ChaCha20-Poly1305" {@link javax.crypto.Cipher} algorithm</li>
+    <li>The "SHA512" hash algorithm requires that the JVM have a security provider that supports the "SHA-512" {@link java.security.MessageDigest} algorithm and the "HmacSHA512" {@link javax.crypto.Mac} algorithm</li>
+</ul>
+
+<p>All other algorithms named in the Noise Protocol Framework specification are supported unconditionally.</p>
+
+<h1>Handshakes</h1>
+
+<p>A Noise protocol begins with a handshake in which two parties (an initiator and a responder) exchange handshake messages that contain key material and optional payloads to negotiate a shared secret key and establish an ongoing session for Noise transport messages. Noise handshakes are described by <a href="https://noiseprotocol.org/noise.html#handshake-patterns">"handshake patterns"</a>, which prescribe the handshake messages exchanged between the initiator and responder. In java-noise, Noise handshakes are managed by {@link com.eatthepath.noise.NoiseHandshake} instances.</p>
+
+<p>{@code NoiseHandshake} instances can be constructed using either a {@link com.eatthepath.noise.NoiseHandshakeBuilder}, which provides static initializers for common Noise handshake patterns, or a {@link com.eatthepath.noise.NamedProtocolHandshakeBuilder}, which allows for arbitrary handshake pattern names, but only offers runtime checks (as opposed to compile-time checks) that appropriate key material has been provided before building a {@code NoiseHandshake} instance.</p>
+
+<h2>Interactive patterns</h2>
+
+<p>In the most common case, Noise handshakes implement a interactive pattern in which both parties will send and receive messages to one another once the handshake is complete. As an example, the NN interactive handshake pattern is defined as:</p>
+
+<pre>NN:
+  -&gt; e
+  &lt;- e, ee</pre>
+
+<p>The parties in an NN handshake exchange messages until all required messages have been exchanged, then the handshake instances yield interactive transport instances:</p>
+
+{@snippet file="NoiseHandshakeExample.java" region="interactive-handshake"}
+
+<h2>One-way patterns</h2>
+
+<p>Noise handshakes may also use one-way patterns. As the Noise Protocol Framework specification notes:</p>
+
+<blockquote>These patterns could be used to encrypt files, database records, or other non-interactive data streams.</blockquote>
+
+<p>One-way handshakes exchange handshake messages in the same way as interactive handshakes, but instead of producing interactive {@link com.eatthepath.noise.NoiseTransport} instances, one-way handshakes produce a one-way {@link com.eatthepath.noise.NoiseTransportWriter} for initiators or {@link com.eatthepath.noise.NoiseTransportReader} for responders. As an example, the N handshake pattern is defined as:</p>
+
+<pre>N:
+  &lt;- s
+  ...
+  -&gt; e, es</pre>
+
+<p>The parties in an N handshake exchange messages as usual, then the handshake instances yield one-way transport instances:</p>
+
+{@snippet file="NoiseHandshakeExample.java" region="one-way-handshake"}
+
+<h2>Fallback patterns</h2>
+
+<p>Noise handshakes can "fall back" to another pattern to handle certain kinds of errors. As an example, the<a href="https://noiseprotocol.org/noise.html#noise-pipes">Noise Pipes</a> compound protocol expects that initiators will usually have the responder's static public key available from a previous "full" (XX) handshake, and can use an abbreviated (IK) handshake pattern with that static key set via a pre-handshake message. If the responder can't decrypt a message from the initiator, though, it might conclude that the initiator has a stale copy of its public key and can fall back to a "full" (XXfallback) handshake.</p>
+
+<p>The IK handshake pattern is defined as:</p>
+
+<pre>IK:
+  &lt;- s
+  ...
+  -&gt; e, es, s, ss
+  &lt;- e, ee, se</pre>
+
+<p>…and the XXfallback pattern is defined as:</p>
+
+<pre>XXfallback:
+  -&gt; e
+  ...
+  &lt;- e, ee, s, es
+  -&gt; s, se</pre>
+
+<p>As an example, consider a scenario where the initiator of an IK handshake has a "stale" static key for the responder:</p>
+
+{@snippet file="NoiseHandshakeExample.java" region="build-ik-handshake"}
+
+<p>The initiator sends its first message to the responder, which won't be able to decrypt the message due to the static key disagreement:</p>
+
+{@snippet file="NoiseHandshakeExample.java" region="send-initiator-static-key-message"}
+
+<p>Rather than simply failing the handshake (assuming both the initiator and responder are expecting that a fallback may happen), the responder can fall back to the XXfallback pattern, reusing the ephemeral key it already received from the initiator as a pre-handshake message, and write a message to continue the XXfallback pattern:</p>
+
+{@snippet file="NoiseHandshakeExample.java" region="responder-fallback"}
+
+<p>The initiator will fail to decrypt the message from the responder:</p>
+
+{@snippet file="NoiseHandshakeExample.java" region="initiator-read-fallback-message"}
+
+<p>Like the responder, the initiator can take the decryption failure as a cue to fall back to the XXfallback pattern, then read the message and finish the handshake:</p>
+
+{@snippet file="NoiseHandshakeExample.java" region="initiator-fallback"}
+
+<p>Once the handshake is finished, the transition to the transport phase of the protocol continues as usual.</p>
+
+<h1>Transports</h1>
+
+<p>Once the handshake phase of a Noise protocol has finished, {@code NoiseHandshake} instances may be transformed or "split" (in the terminology of the Noise Protocol Framework specification) into Noise transport objects. Depending on the nature of the handshake and the role of the party in the handshake, a {@code NoiseHandshake} instance may be transformed into exactly one of:</p>
+
+<ul>
+    <li>A {@link com.eatthepath.noise.NoiseTransportWriter} if the handshake is a one-way handshake for the handshake initiator</li>
+    <li>A {@link com.eatthepath.noise.NoiseTransportReader} if the handshake is a one-way handshake for the handshake responder</li>
+    <li>A {@link com.eatthepath.noise.NoiseTransport} if the handshake is interactive</li>
+</ul>
+
+<p>Once a handshake has been split, a Noise transport instance can be used to exchange transport messages as needed. Note that unlike handshake messages, transport messages contain only payload ciphertexts (i.e. they do not contain key material, and their content is always encrypted). As an example starting from a finished interactive handshake:</p>
+
+{@snippet file="OverviewExample.java" region="transport-messages"}
+
+</body>
+</html>

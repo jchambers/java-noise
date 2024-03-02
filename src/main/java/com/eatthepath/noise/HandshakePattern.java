@@ -590,7 +590,7 @@ class HandshakePattern {
   /**
    * Checks whether this is a one-way handshake pattern.
    *
-   * @return {@code true} if this is a one-way handshake pattern or {@code false} if it is a bidirectional handshake
+   * @return {@code true} if this is a one-way handshake pattern or {@code false} if it is an interactive handshake
    * pattern
    *
    * @see <a href="https://noiseprotocol.org/noise.html#one-way-handshake-patterns">The Noise Protocol Framework - One-way handshake patterns</a>

@@ -22,6 +22,8 @@ import java.util.Objects;
  * …or by specifying the name of each component individually:
  * <p>
  * {@snippet file="NoiseHandshakeBuilderExample.java" region="ik-handshake-component-names"}
+ *
+ * @see NamedProtocolHandshakeBuilder
  */
 @SuppressWarnings("unused")
 public class NoiseHandshakeBuilder {
