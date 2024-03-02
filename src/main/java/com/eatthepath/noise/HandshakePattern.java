@@ -6,6 +6,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+/**
+ * <p>A handshake pattern specifies the sequential exchange of messages that comprise a Noise handshake. Callers
+ * generally do not need to interact directly with handshake patterns.</p>
+ *
+ * <p>Handshake patterns may be retrieved by name. For example:</p>
+ *
+ * {@snippet file="HandshakePatternExample.java" region="get-instance"}
+ */
 public class HandshakePattern {
 
   private final String name;
@@ -375,6 +383,11 @@ public class HandshakePattern {
     }
   }
 
+  /**
+   * Returns the name of this handshake pattern.
+   *
+   * @return the name of this handshake pattern
+   */
   public String getName() {
     return name;
   }
@@ -387,6 +400,15 @@ public class HandshakePattern {
     return handshakeMessagePatterns;
   }
 
+  /**
+   * Returns a {@code HandshakePattern} instance for the handshake pattern with the given name.
+   *
+   * @param name the name of the handshake pattern for which to retrieve a {@code HandshakePattern} instance
+   *
+   * @return a {@code HandshakePattern} instance for the given handshake pattern name
+   *
+   * @throws NoSuchPatternException if the given cannot be resolved to a Noise handshake pattern
+   */
   public static HandshakePattern getInstance(final String name) throws NoSuchPatternException {
     if (FUNDAMENTAL_PATTERNS_BY_NAME.containsKey(name)) {
       return FUNDAMENTAL_PATTERNS_BY_NAME.get(name);
@@ -569,6 +591,14 @@ public class HandshakePattern {
     return new HandshakePattern.MessagePattern(sender, tokens);
   }
 
+  /**
+   * Checks whether this is a one-way handshake pattern.
+   *
+   * @return {@code true} if this is a one-way handshake pattern or {@code false} if it is a bidirectional handshake
+   * pattern
+   *
+   * @see <a href="https://noiseprotocol.org/noise.html#one-way-handshake-patterns">The Noise Protocol Framework - One-way handshake patterns</a>
+   */
   public boolean isOneWayPattern() {
     return Arrays.stream(getHandshakeMessagePatterns())
         .allMatch(messagePattern -> messagePattern.sender() == NoiseHandshake.Role.INITIATOR);
@@ -578,6 +608,15 @@ public class HandshakePattern {
     return getModifiers(getName()).contains("fallback");
   }
 
+  /**
+   * Checks whether the party with the given role in this handshake must supply a local static key pair prior to
+   * beginning the handshake.
+   *
+   * @param role the role of the party in this handshake
+   *
+   * @return {@code true} if the given party must provide a local static key pair prior to beginning the handshake or
+   * {@code false} otherwise
+   */
   public boolean requiresLocalStaticKeyPair(final NoiseHandshake.Role role) {
     // The given role needs a local static key pair if any pre-handshake message or handshake message involves that role
     // sending a static key to the other party
@@ -587,6 +626,15 @@ public class HandshakePattern {
         .anyMatch(token -> token == Token.S);
   }
 
+  /**
+   * Checks whether the party with the given role in this handshake must supply a remote ephemeral public key prior to
+   * beginning the handshake.
+   *
+   * @param role the role of the party in this handshake
+   *
+   * @return {@code true} if the given party must provide a remote ephemeral public key prior to beginning the handshake
+   * or {@code false} otherwise
+   */
   public boolean requiresRemoteEphemeralPublicKey(final NoiseHandshake.Role role) {
     // The given role needs a remote static key pair if the handshake pattern involves that role receiving an ephemeral
     // key from the other party in a pre-handshake message
@@ -596,6 +644,15 @@ public class HandshakePattern {
         .anyMatch(token -> token == Token.E);
   }
 
+  /**
+   * Checks whether the party with the given role in this handshake must supply a remote static public key prior to
+   * beginning the handshake.
+   *
+   * @param role the role of the party in this handshake
+   *
+   * @return {@code true} if the given party must provide a remote static public key prior to beginning the handshake or
+   * {@code false} otherwise
+   */
   public boolean requiresRemoteStaticPublicKey(final NoiseHandshake.Role role) {
     // The given role needs a remote static key pair if the handshake pattern involves that role receiving a static key
     // from the other party in a pre-handshake message
@@ -611,6 +668,11 @@ public class HandshakePattern {
         .anyMatch(token -> token == Token.PSK);
   }
 
+  /**
+   * Returns the number of pre-shared keys either party in this handshake must provide prior to beginning the handshake.
+   *
+   * @return the number of pre-shared keys either party in this handshake must provide prior to beginning the handshake
+   */
   public int getRequiredPreSharedKeyCount() {
     return Math.toIntExact(Arrays.stream(getHandshakeMessagePatterns())
         .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
@@ -618,6 +680,15 @@ public class HandshakePattern {
         .count());
   }
 
+  /**
+   * Tests whether this handshake pattern is equal to another object. This handshake pattern is equal to the given
+   * object if the given object is also a handshake pattern and has the same name and message patterns as this handshake
+   * pattern.
+   *
+   * @param o the other object with which to check equality
+   *
+   * @return {@code true} if this handshake pattern is equal to the given object or {@code false} otherwise
+   */
   @Override
   public boolean equals(final Object o) {
     if (this == o) {
@@ -631,6 +702,11 @@ public class HandshakePattern {
     }
   }
 
+  /**
+   * Returns a hash code value for this handshake pattern.
+   *
+   * @return a hash code value for this handshake pattern
+   */
   @Override
   public int hashCode() {
     int result = Objects.hash(name);
