@@ -136,6 +136,7 @@ public class NoiseHandshake {
 
   private int currentMessagePattern = 0;
   private boolean hasSplit = false;
+  private boolean hasFallenBack = false;
 
   private final CipherState cipherState;
   private final NoiseHash noiseHash;
@@ -478,6 +479,10 @@ public class NoiseHandshake {
    * @see #isDone()
    */
   public boolean isExpectingRead() {
+    if (hasFallenBack) {
+      return false;
+    }
+
     if (currentMessagePattern < handshakePattern.getHandshakeMessagePatterns().length) {
       return handshakePattern.getHandshakeMessagePatterns()[currentMessagePattern].sender() != role;
     }
@@ -497,6 +502,10 @@ public class NoiseHandshake {
    * @see #isDone()
    */
   public boolean isExpectingWrite() {
+    if (hasFallenBack) {
+      return false;
+    }
+
     if (currentMessagePattern < handshakePattern.getHandshakeMessagePatterns().length) {
       return handshakePattern.getHandshakeMessagePatterns()[currentMessagePattern].sender() == role;
     }
@@ -514,6 +523,10 @@ public class NoiseHandshake {
    * @see #isExpectingWrite()
    */
   public boolean isDone() {
+    if (hasFallenBack) {
+      return false;
+    }
+
     return currentMessagePattern == handshakePattern.getHandshakeMessagePatterns().length;
   }
 
@@ -1246,7 +1259,6 @@ public class NoiseHandshake {
    * @see HandshakePattern#isFallbackPattern()
    */
   public NoiseHandshake fallbackTo(final String handshakePatternName) throws NoSuchPatternException {
-    // TODO Self-destruct after falling back
     return fallbackTo(handshakePatternName, null);
   }
 
@@ -1271,6 +1283,10 @@ public class NoiseHandshake {
    * @see HandshakePattern#isFallbackPattern()
    */
   public NoiseHandshake fallbackTo(final String handshakePatternName, @Nullable final List<byte[]> preSharedKeys) throws NoSuchPatternException {
+    if (hasFallenBack) {
+      throw new IllegalStateException("Handshake has already fallen back to another pattern");
+    }
+
     final HandshakePattern fallbackPattern = HandshakePattern.getInstance(handshakePatternName);
 
     if (!fallbackPattern.isFallbackPattern()) {
@@ -1312,6 +1328,8 @@ public class NoiseHandshake {
     } else {
       fallbackRemoteEphemeralPublicKey = null;
     }
+
+    hasFallenBack = true;
 
     return new NoiseHandshake(role,
         fallbackPattern,

@@ -3,9 +3,12 @@ package com.eatthepath.noise;
 import com.eatthepath.noise.component.NoiseKeyAgreement;
 import org.junit.jupiter.api.Test;
 
+import javax.crypto.AEADBadTagException;
 import javax.crypto.ShortBufferException;
 import java.nio.ByteBuffer;
+import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -129,5 +132,38 @@ class NoiseHandshakeTest {
 
     assertThrows(ShortBufferException.class, () ->
         handshake.readMessage(ByteBuffer.wrap(message), ByteBuffer.allocate(payloadLength - 1)));
+  }
+
+  @Test
+  void repeatedFallback() throws NoSuchAlgorithmException {
+    final NoiseKeyAgreement keyAgreement = NoiseKeyAgreement.getInstance("25519");
+
+    final KeyPair initiatorStaticKeyPair = keyAgreement.generateKeyPair();
+    final PublicKey staleRemoteStaticPublicKey = keyAgreement.generateKeyPair().getPublic();
+    final KeyPair currentResponderStaticKeyPair = keyAgreement.generateKeyPair();
+
+    final byte[] initiatorStaticKeyMessage;
+    {
+      final NoiseHandshake ikInitiatorHandshake =
+          NoiseHandshakeBuilder.forIKInitiator(initiatorStaticKeyPair, staleRemoteStaticPublicKey)
+              .setComponentsFromProtocolName("Noise_IK_25519_AESGCM_SHA256")
+              .build();
+
+      initiatorStaticKeyMessage = ikInitiatorHandshake.writeMessage((byte[]) null);
+    }
+
+    final NoiseHandshake ikResponderHandshake =
+        NoiseHandshakeBuilder.forIKResponder(currentResponderStaticKeyPair)
+            .setComponentsFromProtocolName("Noise_IK_25519_AESGCM_SHA256")
+            .build();
+
+    assertThrows(AEADBadTagException.class, () -> ikResponderHandshake.readMessage(initiatorStaticKeyMessage));
+
+    assertDoesNotThrow(() -> ikResponderHandshake.fallbackTo("XXfallback"));
+    assertThrows(IllegalStateException.class, () -> ikResponderHandshake.fallbackTo("XXfallback"));
+
+    assertFalse(ikResponderHandshake.isExpectingRead());
+    assertFalse(ikResponderHandshake.isExpectingWrite());
+    assertFalse(ikResponderHandshake.isDone());
   }
 }
