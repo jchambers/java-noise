@@ -639,6 +639,8 @@ public class NoiseHandshake {
    *
    * @return a new byte array containing the resulting handshake message
    *
+   * @throws IllegalArgumentException if the message produced for the given payload would be larger than the maximum
+   * allowed Noise handshake message size
    * @throws IllegalStateException if this handshake is not currently expecting to send a handshake message to its peer
    *
    * @see #isExpectingWrite()
@@ -679,6 +681,8 @@ public class NoiseHandshake {
    *
    * @return the number of bytes written to {@code message}
    *
+   * @throws IllegalArgumentException if the message produced for the given payload would be larger than the maximum
+   * allowed Noise handshake message size
    * @throws IllegalStateException if this handshake is not currently expecting to send a handshake message to its peer
    * @throws ShortBufferException if {@code message} is not large enough (after its offset) to hold the handshake
    * message
@@ -771,6 +775,8 @@ public class NoiseHandshake {
    *
    * @return a new byte buffer containing the resulting handshake message
    *
+   * @throws IllegalArgumentException if the message produced for the given payload would be larger than the maximum
+   * allowed Noise handshake message size
    * @throws IllegalStateException if this handshake is not currently expecting to send a handshake message to its peer
    *
    * @see #isExpectingWrite()
@@ -811,6 +817,8 @@ public class NoiseHandshake {
    *
    * @return the number of bytes written to {@code message}
    *
+   * @throws IllegalArgumentException if the message produced for the given payload would be larger than the maximum
+   * allowed Noise handshake message size
    * @throws IllegalStateException if this handshake is not currently expecting to send a handshake message to its peer
    * @throws ShortBufferException if {@code message} does not have enough remaining capacity to hold the handshake
    * message
@@ -899,7 +907,8 @@ public class NoiseHandshake {
    *
    * @throws AEADBadTagException if the AEAD tag for any encrypted component of the given handshake message does not
    * match the calculated value
-   * @throws IllegalArgumentException if the given message is too short to contain the expected handshake message
+   * @throws IllegalArgumentException if the given message is too short to contain the expected handshake message or if
+   * the given message is larger than the maximum allowed Noise handshake message size
    */
   public byte[] readMessage(final byte[] message) throws AEADBadTagException {
     checkInboundMessageSize(message.length);
@@ -934,8 +943,9 @@ public class NoiseHandshake {
    * match the calculated value
    * @throws ShortBufferException if {@code payload} is too short (after its offset) to hold the plaintext of the
    * payload included in the given handshake message
-   * @throws IllegalArgumentException if the given message is too short to contain the expected handshake message
-   * 
+   * @throws IllegalArgumentException if the given message is too short to contain the expected handshake message or if
+   * the given message is larger than the maximum allowed Noise handshake message size
+   *
    * @see #getPayloadLength(int)
    */
   public int readMessage(final byte[] message,
@@ -1013,7 +1023,8 @@ public class NoiseHandshake {
    *
    * @throws AEADBadTagException if the AEAD tag for any encrypted component of the given handshake message does not
    * match the calculated value
-   * @throws IllegalArgumentException if the given message is too short to contain the expected handshake message
+   * @throws IllegalArgumentException if the given message is too short to contain the expected handshake message or if
+   * the given message is larger than the maximum allowed Noise handshake message size
    */
   public ByteBuffer readMessage(final ByteBuffer message) throws AEADBadTagException {
     checkInboundMessageSize(message.remaining());
@@ -1049,7 +1060,8 @@ public class NoiseHandshake {
    * match the calculated value
    * @throws ShortBufferException if {@code payload} does not have enough remaining capacity to hold the plaintext of
    * the payload included in the given handshake message
-   * @throws IllegalArgumentException if the given message is too short to contain the expected handshake message
+   * @throws IllegalArgumentException if the given message is too short to contain the expected handshake message or if
+   * the given message is larger than the maximum allowed Noise handshake message size
    *
    * @see #getPayloadLength(int)
    */

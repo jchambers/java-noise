@@ -33,6 +33,9 @@ public interface NoiseTransportWriter {
    *
    * @return a new byte buffer containing the resulting ciphertext and AEAD tag
    *
+   * @throws IllegalArgumentException if the ciphertext for the given plaintext would be larger than the maximum allowed
+   * Noise transport message size
+   *
    * @see #getCiphertextLength(int)
    */
   ByteBuffer writeMessage(final ByteBuffer plaintext);
@@ -54,6 +57,8 @@ public interface NoiseTransportWriter {
    *
    * @return the number of bytes written into the ciphertext buffer
    *
+   * @throws IllegalArgumentException if the ciphertext for the given plaintext would be larger than the maximum allowed
+   * Noise transport message size
    * @throws ShortBufferException if the given ciphertext buffer does not have enough remaining capacity to hold the
    * resulting ciphertext and AEAD tag
    *
@@ -67,6 +72,9 @@ public interface NoiseTransportWriter {
    * @param plaintext the plaintext to encrypt
    *
    * @return a new byte array containing the resulting ciphertext
+   *
+   * @throws IllegalArgumentException if the ciphertext for the given plaintext would be larger than the maximum allowed
+   * Noise transport message size
    */
   byte[] writeMessage(final byte[] plaintext);
 
@@ -89,6 +97,8 @@ public interface NoiseTransportWriter {
    * ciphertext and AEAD tag
    * @throws IndexOutOfBoundsException if the given plaintext length exceeds the length of the plaintext array after its
    * offset
+   * @throws IllegalArgumentException if the ciphertext for the given plaintext would be larger than the maximum allowed
+   * Noise transport message size
    *
    * @see #getCiphertextLength(int)
    */

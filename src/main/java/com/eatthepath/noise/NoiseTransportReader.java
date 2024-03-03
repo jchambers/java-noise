@@ -38,7 +38,8 @@ public interface NoiseTransportReader {
    * @return a {@code ByteBuffer} containing the resulting plaintext
    *
    * @throws AEADBadTagException if the AEAD tag in the given ciphertext does not match the calculated value
-   * @throws IllegalArgumentException if the given ciphertext is too short to contain a valid AEAD tag
+   * @throws IllegalArgumentException if the given ciphertext is too short to contain a valid AEAD tag or if it is
+   * larger than the maximum allowed Noise transport message size
    *
    * @see #getPlaintextLength(int)
    */
@@ -60,7 +61,8 @@ public interface NoiseTransportReader {
    * @return the number of bytes written into the {@code plaintext} buffer
    *
    * @throws AEADBadTagException if the AEAD tag in the given ciphertext does not match the calculated value
-   * @throws IllegalArgumentException if the given ciphertext is too short to contain a valid AEAD tag
+   * @throws IllegalArgumentException if the given ciphertext is too short to contain a valid AEAD tag or if it is
+   * larger than the maximum allowed Noise transport message size
    * @throws ShortBufferException if the given plaintext buffer does not have enough remaining capacity to hold the
    * resulting plaintext
    *
@@ -76,7 +78,8 @@ public interface NoiseTransportReader {
    * @return a new byte array containing the resulting plaintext
    *
    * @throws AEADBadTagException if the AEAD tag in the given ciphertext does not match the calculated AEAD tag
-   * @throws IllegalArgumentException if the given ciphertext is too small to contain a valid AEAD tag
+   * @throws IllegalArgumentException if the given ciphertext is too short to contain a valid AEAD tag or if it is
+   * larger than the maximum allowed Noise transport message size
    */
   byte[] readMessage(final byte[] ciphertext) throws AEADBadTagException;
 
@@ -96,7 +99,8 @@ public interface NoiseTransportReader {
    * @throws AEADBadTagException if the AEAD tag in the given ciphertext does not match the calculated value
    * @throws ShortBufferException if {@code plaintext} is not long enough (after its offset) to contain the resulting
    * plaintext
-   * @throws IllegalArgumentException if the given ciphertext is too short to contain a valid AEAD tag
+   * @throws IllegalArgumentException if the given ciphertext is too short to contain a valid AEAD tag or if it is
+   * larger than the maximum allowed Noise transport message size
    */
   int readMessage(final byte[] ciphertext,
                   final int ciphertextOffset,
