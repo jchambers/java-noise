@@ -42,7 +42,9 @@ abstract class AbstractXECKeyAgreement implements NoiseKeyAgreement {
 
   @Override
   public byte[] serializePublicKey(final PublicKey publicKey) {
-    // TODO This is a pretty hacky way of dealing with key serialization; come back to this with a real encoder
+    // This is a little hacky, but the structure for an X.509 public key defines the order in which its elements appear.
+    // The first part of the key, which defines the algorithm and its parameters, is always the same for keys of the
+    // same type, and the last N bytes are the literal key material.
     final byte[] serializedPublicKey = new byte[getPublicKeyLength()];
     System.arraycopy(publicKey.getEncoded(), getX509Prefix().length, serializedPublicKey, 0, getPublicKeyLength());
 
@@ -51,7 +53,6 @@ abstract class AbstractXECKeyAgreement implements NoiseKeyAgreement {
 
   @Override
   public PublicKey deserializePublicKey(final byte[] publicKeyBytes) {
-    // TODO This is a pretty hacky way of dealing with key deserialization; come back to this with a real decoder
     final int publicKeyLength = getPublicKeyLength();
 
     if (publicKeyBytes.length != publicKeyLength) {
