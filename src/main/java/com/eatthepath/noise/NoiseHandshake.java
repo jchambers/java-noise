@@ -161,6 +161,8 @@ public class NoiseHandshake {
 
   private int currentPreSharedKey;
 
+  static final int MAX_NOISE_MESSAGE_SIZE = 65_535;
+
   private static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
   private static final ByteBuffer EMPTY_BYTE_BUFFER = ByteBuffer.wrap(EMPTY_BYTE_ARRAY);
 
@@ -643,8 +645,9 @@ public class NoiseHandshake {
    * @see <a href="https://noiseprotocol.org/noise.html#payload-security-properties">The Noise Protocol Framework - Payload security properties</a>
    */
   public byte[] writeMessage(@Nullable final byte[] payload) {
-    // TODO Verify that message size is within bounds
     final int payloadLength = payload != null ? payload.length : 0;
+    checkOutboundMessageSize(payloadLength);
+
     final byte[] message = new byte[getOutboundMessageLength(payloadLength)];
 
     try {
@@ -690,7 +693,11 @@ public class NoiseHandshake {
                           final byte[] message,
                           final int messageOffset) throws ShortBufferException {
 
-    // TODO Check message buffer length, or just let plumbing deeper down complain?
+    checkOutboundMessageSize(payloadLength);
+
+    if (message.length - messageOffset < getOutboundMessageLength(payloadLength)) {
+      throw new ShortBufferException("Message array after offset is not large enough to hold handshake message");
+    }
 
     if (!isExpectingWrite()) {
       throw new IllegalStateException("Handshake not currently expecting to write a message");
@@ -770,7 +777,10 @@ public class NoiseHandshake {
    * @see <a href="https://noiseprotocol.org/noise.html#payload-security-properties">The Noise Protocol Framework - Payload security properties</a>
    */
   public ByteBuffer writeMessage(@Nullable final ByteBuffer payload) {
-    final ByteBuffer message = ByteBuffer.allocate(getOutboundMessageLength(payload != null ? payload.remaining() : 0));
+    final int payloadLength = payload != null ? payload.remaining() : 0;
+    checkOutboundMessageSize(payloadLength);
+
+    final ByteBuffer message = ByteBuffer.allocate(getOutboundMessageLength(payloadLength));
 
     try {
       writeMessage(payload, message);
@@ -813,7 +823,12 @@ public class NoiseHandshake {
   public int writeMessage(@Nullable final ByteBuffer payload,
                           final ByteBuffer message) throws ShortBufferException {
 
-    // TODO Check message buffer length, or just let plumbing deeper down complain?
+    final int payloadLength = payload != null ? payload.remaining() : 0;
+    checkOutboundMessageSize(payloadLength);
+
+    if (message.remaining() < getOutboundMessageLength(payloadLength)) {
+      throw new ShortBufferException("Message buffer is not large enough to hold handshake message");
+    }
 
     if (!isExpectingWrite()) {
       throw new IllegalStateException("Handshake not currently expecting to write a message");
@@ -869,6 +884,12 @@ public class NoiseHandshake {
     return bytesWritten;
   }
 
+  private void checkOutboundMessageSize(final int payloadLength) {
+    if (getOutboundMessageLength(payloadLength) > MAX_NOISE_MESSAGE_SIZE) {
+      throw new IllegalArgumentException("Message containing payload would be larger than maximum allowed Noise message size");
+    }
+  }
+
   /**
    * Reads the next handshake message, advancing this handshake's internal state.
    *
@@ -881,6 +902,8 @@ public class NoiseHandshake {
    * @throws IllegalArgumentException if the given message is too short to contain the expected handshake message
    */
   public byte[] readMessage(final byte[] message) throws AEADBadTagException {
+    checkInboundMessageSize(message.length);
+
     final byte[] payload = new byte[getPayloadLength(message.length)];
 
     try {
@@ -920,6 +943,12 @@ public class NoiseHandshake {
                          final int messageLength,
                          final byte[] payload,
                          final int payloadOffset) throws ShortBufferException, AEADBadTagException {
+
+    checkInboundMessageSize(messageLength);
+
+    if (payload.length - payloadOffset < getPayloadLength(messageLength)) {
+      throw new ShortBufferException("Payload array after offset is not large enough to hold payload");
+    }
 
     if (!isExpectingRead()) {
       throw new IllegalStateException("Handshake not currently expecting to read a message");
@@ -987,6 +1016,8 @@ public class NoiseHandshake {
    * @throws IllegalArgumentException if the given message is too short to contain the expected handshake message
    */
   public ByteBuffer readMessage(final ByteBuffer message) throws AEADBadTagException {
+    checkInboundMessageSize(message.remaining());
+
     final ByteBuffer payload = ByteBuffer.allocate(getPayloadLength(message.remaining()));
 
     try {
@@ -1024,6 +1055,12 @@ public class NoiseHandshake {
    */
   public int readMessage(final ByteBuffer message,
                          final ByteBuffer payload) throws ShortBufferException, AEADBadTagException {
+
+    checkInboundMessageSize(message.remaining());
+
+    if (payload.remaining() < getPayloadLength(message.remaining())) {
+      throw new ShortBufferException("Payload buffer is not large enough to hold payload");
+    }
 
     if (!isExpectingRead()) {
       throw new IllegalStateException("Handshake not currently expecting to read a message");
@@ -1075,6 +1112,12 @@ public class NoiseHandshake {
     currentMessagePattern += 1;
 
     return decryptAndHash(message, payload);
+  }
+
+  private void checkInboundMessageSize(final int messageSize) {
+    if (messageSize > MAX_NOISE_MESSAGE_SIZE) {
+      throw new IllegalArgumentException("Message is larger than maximum allowed Noise message size");
+    }
   }
 
   private void handleMixKeyToken(final HandshakePattern.Token token) {
