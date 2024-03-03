@@ -64,7 +64,7 @@ class NoiseTransportImpl implements NoiseTransport {
       throw new ShortBufferException("Plaintext array after offset is not large enough to hold plaintext");
     }
 
-    return readerState.decrypt(null, 0, 0,
+    return readerState.decrypt(null,
         ciphertext, ciphertextOffset, ciphertextLength,
         plaintext, plaintextOffset);
   }
@@ -113,7 +113,7 @@ class NoiseTransportImpl implements NoiseTransport {
       throw new ShortBufferException("Ciphertext array after offset is not large enough to hold ciphertext");
     }
 
-    return writerState.encrypt(null, 0, 0,
+    return writerState.encrypt(null,
         plaintext, plaintextOffset, plaintextLength,
         ciphertext, ciphertextOffset);
   }

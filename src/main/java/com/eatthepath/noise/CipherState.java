@@ -39,7 +39,7 @@ class CipherState {
     return this.key != null;
   }
 
-  public ByteBuffer decrypt(@Nullable final ByteBuffer associatedData, final ByteBuffer ciphertext)
+  public ByteBuffer decrypt(@Nullable final byte[] associatedData, final ByteBuffer ciphertext)
       throws AEADBadTagException {
 
     final ByteBuffer plaintext = ByteBuffer.allocate(getPlaintextLength(ciphertext.remaining()));
@@ -54,7 +54,7 @@ class CipherState {
     return plaintext.flip();
   }
 
-  public int decrypt(@Nullable final ByteBuffer associatedData, final ByteBuffer ciphertext, final ByteBuffer plaintext)
+  public int decrypt(@Nullable final byte[] associatedData, final ByteBuffer ciphertext, final ByteBuffer plaintext)
       throws AEADBadTagException, ShortBufferException {
 
     if (hasKey()) {
@@ -75,8 +75,6 @@ class CipherState {
 
     try {
       decrypt(associatedData,
-          0,
-          associatedData != null ? associatedData.length : 0,
           ciphertext,
           0,
           ciphertext.length,
@@ -91,8 +89,6 @@ class CipherState {
   }
 
   public int decrypt(@Nullable final byte[] associatedData,
-                     final int aadOffset,
-                     final int aadLength,
                      final byte[] ciphertext,
                      final int ciphertextOffset,
                      final int ciphertextLength,
@@ -103,8 +99,6 @@ class CipherState {
       final int plaintextLength = cipher.decrypt(key,
           nonce,
           associatedData,
-          aadOffset,
-          aadLength,
           ciphertext,
           ciphertextOffset,
           ciphertextLength,
@@ -119,7 +113,7 @@ class CipherState {
     }
   }
 
-  public ByteBuffer encrypt(@Nullable final ByteBuffer associatedData, final ByteBuffer plaintext) {
+  public ByteBuffer encrypt(@Nullable final byte[] associatedData, final ByteBuffer plaintext) {
     final ByteBuffer ciphertext = ByteBuffer.allocate(getCiphertextLength(plaintext.remaining()));
 
     try {
@@ -132,7 +126,7 @@ class CipherState {
     return ciphertext.flip();
   }
 
-  public int encrypt(@Nullable final ByteBuffer associatedData, final ByteBuffer plaintext, final ByteBuffer ciphertext) throws ShortBufferException {
+  public int encrypt(@Nullable final byte[] associatedData, final ByteBuffer plaintext, final ByteBuffer ciphertext) throws ShortBufferException {
     if (hasKey()) {
       final int ciphertextLength = cipher.encrypt(key, nonce, associatedData, plaintext, ciphertext);
       nonce += 1;
@@ -151,8 +145,6 @@ class CipherState {
 
     try {
       encrypt(associatedData,
-          0,
-          associatedData != null ? associatedData.length : 0,
           plaintext,
           0,
           plaintext.length,
@@ -167,8 +159,6 @@ class CipherState {
   }
 
   public int encrypt(@Nullable final byte[] associatedData,
-                       final int aadOffset,
-                       final int aadLength,
                        final byte[] plaintext,
                        final int plaintextOffset,
                        final int plaintextLength,
@@ -179,8 +169,6 @@ class CipherState {
       final int ciphertextLength = cipher.encrypt(key,
           nonce,
           associatedData,
-          aadOffset,
-          aadLength,
           plaintext,
           plaintextOffset,
           plaintextLength,

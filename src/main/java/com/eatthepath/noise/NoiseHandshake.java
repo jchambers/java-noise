@@ -418,7 +418,7 @@ public class NoiseHandshake {
                              final int ciphertextOffset) throws ShortBufferException {
 
     final int ciphertextLength =
-        cipherState.encrypt(hash, 0, hash.length, plaintext, plaintextOffset, plaintextLength, ciphertext, ciphertextOffset);
+        cipherState.encrypt(hash, plaintext, plaintextOffset, plaintextLength, ciphertext, ciphertextOffset);
 
     mixHash(ciphertext, ciphertextOffset, ciphertextLength);
 
@@ -426,7 +426,7 @@ public class NoiseHandshake {
   }
 
   private int encryptAndHash(final ByteBuffer plaintext, final ByteBuffer ciphertext) throws ShortBufferException {
-    final int ciphertextLength = cipherState.encrypt(ByteBuffer.wrap(hash), plaintext, ciphertext);
+    final int ciphertextLength = cipherState.encrypt(hash, plaintext, ciphertext);
 
     mixHash(ciphertext.slice(ciphertext.position() - ciphertextLength, ciphertextLength));
 
@@ -440,7 +440,7 @@ public class NoiseHandshake {
                              final int plaintextOffset) throws ShortBufferException, AEADBadTagException {
 
     final int plaintextLength =
-        cipherState.decrypt(hash, 0, hash.length, ciphertext, ciphertextOffset, ciphertextLength, plaintext, plaintextOffset);
+        cipherState.decrypt(hash, ciphertext, ciphertextOffset, ciphertextLength, plaintext, plaintextOffset);
 
     mixHash(ciphertext, ciphertextOffset, ciphertextLength);
 
@@ -451,7 +451,7 @@ public class NoiseHandshake {
                              final ByteBuffer plaintext) throws ShortBufferException, AEADBadTagException {
 
     final int initialCiphertextPosition = ciphertext.position();
-    final int plaintextLength = cipherState.decrypt(ByteBuffer.wrap(hash), ciphertext, plaintext);
+    final int plaintextLength = cipherState.decrypt(hash, ciphertext, plaintext);
 
     mixHash(ciphertext.slice(initialCiphertextPosition, ciphertext.position() - initialCiphertextPosition));
 

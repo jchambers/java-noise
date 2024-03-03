@@ -77,7 +77,7 @@ public interface NoiseCipher {
    */
   default ByteBuffer encrypt(final Key key,
                              final long nonce,
-                             @Nullable final ByteBuffer associatedData,
+                             @Nullable final byte[] associatedData,
                              final ByteBuffer plaintext) {
 
     final ByteBuffer ciphertext = ByteBuffer.allocate(getCiphertextLength(plaintext.remaining()));
@@ -121,7 +121,7 @@ public interface NoiseCipher {
    */
   int encrypt(final Key key,
               final long nonce,
-              @Nullable final ByteBuffer associatedData,
+              @Nullable final byte[] associatedData,
               final ByteBuffer plaintext,
               final ByteBuffer ciphertext)
       throws ShortBufferException;
@@ -150,8 +150,6 @@ public interface NoiseCipher {
       encrypt(key,
           nonce,
           associatedData,
-          0,
-          associatedData != null ? associatedData.length : 0,
           plaintext,
           0,
           plaintext.length,
@@ -175,10 +173,6 @@ public interface NoiseCipher {
    * @param nonce a nonce, which must be unique for the given key
    * @param associatedData a byte array containing the associated data (if any) to be used when encrypting the given
    *                       plaintext; may be {@code null}
-   * @param aadOffset the position within {@code associatedData} where the associated data starts; ignored if
-   *                  {@code associatedData} is {@code null}
-   * @param aadLength the length of the associated data within {@code associatedData}; ignored if {@code associatedData}
-   *                  is {@code null}
    * @param plaintext a byte array containing the plaintext to encrypt
    * @param plaintextOffset the offset within {@code plaintext} where the plaintext begins
    * @param plaintextLength the length of the plaintext within {@code plaintext}
@@ -198,8 +192,6 @@ public interface NoiseCipher {
   int encrypt(final Key key,
               final long nonce,
               @Nullable final byte[] associatedData,
-              final int aadOffset,
-              final int aadLength,
               final byte[] plaintext,
               final int plaintextOffset,
               final int plaintextLength,
@@ -229,7 +221,7 @@ public interface NoiseCipher {
    */
   default ByteBuffer decrypt(final Key key,
                              final long nonce,
-                             @Nullable final ByteBuffer associatedData,
+                             @Nullable final byte[] associatedData,
                              final ByteBuffer ciphertext) throws AEADBadTagException {
 
     final ByteBuffer plaintext = ByteBuffer.allocate(getPlaintextLength(ciphertext.remaining()));
@@ -272,7 +264,7 @@ public interface NoiseCipher {
    */
   int decrypt(final Key key,
               final long nonce,
-              @Nullable final ByteBuffer associatedData,
+              @Nullable final byte[] associatedData,
               final ByteBuffer ciphertext,
               final ByteBuffer plaintext)
       throws AEADBadTagException, ShortBufferException;
@@ -304,8 +296,6 @@ public interface NoiseCipher {
       decrypt(key,
           nonce,
           associatedData,
-          0,
-          associatedData != null ? associatedData.length : 0,
           ciphertext,
           0,
           ciphertext.length,
@@ -330,10 +320,6 @@ public interface NoiseCipher {
    * @param nonce a nonce, which must be unique for the given key
    * @param associatedData a byte array containing the associated data (if any) to be used when verifying the AEAD tag
    *                       for the given ciphertext; may be {@code null}
-   * @param aadOffset the position within {@code associatedData} where the associated data starts; ignored if
-   *                  {@code associatedData} is {@code null}
-   * @param aadLength the length of the associated data within {@code associatedData}; ignored if {@code associatedData}
-   *                  is {@code null}
    * @param ciphertext a byte array containing the ciphertext and AEAD tag to be decrypted and verified
    * @param ciphertextOffset the position within {@code ciphertext} at which to begin reading the ciphertext and AEAD
    *                         tag
@@ -353,8 +339,6 @@ public interface NoiseCipher {
   int decrypt(final Key key,
               final long nonce,
               @Nullable final byte[] associatedData,
-              final int aadOffset,
-              final int aadLength,
               final byte[] ciphertext,
               final int ciphertextOffset,
               final int ciphertextLength,

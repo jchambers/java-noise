@@ -26,17 +26,14 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
   @Override
   public int encrypt(final Key key,
                      final long nonce,
-                     @Nullable final ByteBuffer associatedData,
+                     @Nullable final byte[] associatedData,
                      final ByteBuffer plaintext,
                      final ByteBuffer ciphertext) throws ShortBufferException {
 
     initCipher(cipher, Cipher.ENCRYPT_MODE, key, nonce);
 
     if (associatedData != null) {
-      final byte[] adBytes = new byte[associatedData.remaining()];
-      associatedData.get(adBytes);
-
-      cipher.updateAAD(adBytes);
+      cipher.updateAAD(associatedData);
     }
 
     return finishEncryption(() -> cipher.doFinal(plaintext, ciphertext));
@@ -46,8 +43,6 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
   public int encrypt(final Key key,
                      final long nonce,
                      @Nullable final byte[] associatedData,
-                     final int aadOffset,
-                     final int aadLength,
                      final byte[] plaintext,
                      final int plaintextOffset,
                      final int plaintextLength,
@@ -57,7 +52,7 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
     initCipher(cipher, Cipher.ENCRYPT_MODE, key, nonce);
 
     if (associatedData != null) {
-      cipher.updateAAD(associatedData, aadOffset, aadLength);
+      cipher.updateAAD(associatedData);
     }
 
     return finishEncryption(() ->
@@ -67,17 +62,14 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
   @Override
   public int decrypt(final Key key,
                      final long nonce,
-                     @Nullable final ByteBuffer associatedData,
+                     @Nullable final byte[] associatedData,
                      final ByteBuffer ciphertext,
                      final ByteBuffer plaintext) throws AEADBadTagException, ShortBufferException {
 
     initCipher(cipher, Cipher.DECRYPT_MODE, key, nonce);
 
     if (associatedData != null) {
-      final byte[] adBytes = new byte[associatedData.remaining()];
-      associatedData.get(adBytes);
-
-      cipher.updateAAD(adBytes);
+      cipher.updateAAD(associatedData);
     }
 
     return finishDecryption(() -> cipher.doFinal(ciphertext, plaintext));
@@ -87,8 +79,6 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
   public int decrypt(final Key key,
                      final long nonce,
                      @Nullable final byte[] associatedData,
-                     final int aadOffset,
-                     final int aadLength,
                      final byte[] ciphertext,
                      final int ciphertextOffset,
                      final int ciphertextLength,
@@ -98,7 +88,7 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
     initCipher(cipher, Cipher.DECRYPT_MODE, key, nonce);
 
     if (associatedData != null) {
-      cipher.updateAAD(associatedData, aadOffset, aadLength);
+      cipher.updateAAD(associatedData);
     }
 
     return finishDecryption(() ->
