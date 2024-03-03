@@ -13,6 +13,11 @@ java-noise supports all handshake patterns, handshake pattern modifiers, and cry
 
 All other algorithms named in the Noise Protocol Framework specification are supported unconditionally.
 
+## Reference
+
+- [java-noise API documentation (Javadoc)](https://jchambers.github.io/java-noise/apidocs/latest/)
+- [The Noise Protocol Framework specification](https://noiseprotocol.org/noise.html)
+
 ## Handshakes
 
 A Noise protocol begins with a handshake in which two parties (an initiator and a responder) exchange handshake messages that contain key material and optional payloads to negotiate a shared secret key and establish an ongoing session for Noise transport messages. Noise handshakes are described by ["handshake patterns"](https://noiseprotocol.org/noise.html#handshake-patterns), which prescribe the handshake messages exchanged between the initiator and responder. In java-noise, Noise handshakes are managed by NoiseHandshake instances.
