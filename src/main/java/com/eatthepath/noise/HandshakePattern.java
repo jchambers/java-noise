@@ -464,13 +464,14 @@ class HandshakePattern {
   }
 
   HandshakePattern withModifier(final String modifier) {
-    // TODO Disallow duplicate modifiers
-
     final MessagePattern[] modifiedPreMessagePatterns;
     final MessagePattern[] modifiedHandshakeMessagePatterns;
 
     if ("fallback".equals(modifier)) {
-      // TODO Make sure first handshake message is eligible for fallback
+      if (!isValidFallbackMessagePattern(handshakeMessagePatterns[0])) {
+        throw new IllegalStateException("Cannot generate fallback pattern; first message pattern is not a fallback-eligible message pattern");
+      }
+
       modifiedPreMessagePatterns = new MessagePattern[getPreMessagePatterns().length + 1];
       modifiedHandshakeMessagePatterns = new MessagePattern[getHandshakeMessagePatterns().length - 1];
 
@@ -515,6 +516,20 @@ class HandshakePattern {
     }
 
     return new HandshakePattern(modifiedName, modifiedPreMessagePatterns, modifiedHandshakeMessagePatterns);
+  }
+
+  static boolean isValidFallbackMessagePattern(final MessagePattern messagePattern) {
+    if (messagePattern.sender() != NoiseHandshake.Role.INITIATOR) {
+      return false;
+    }
+
+    if (messagePattern.tokens().length == 1) {
+      return messagePattern.tokens()[0] == Token.E || messagePattern.tokens()[0] == Token.S;
+    } else if (messagePattern.tokens().length == 2) {
+      return messagePattern.tokens()[0] == Token.E && messagePattern.tokens()[1] == Token.S;
+    }
+
+    return false;
   }
 
   static HandshakePattern fromString(final String patternString) {
@@ -604,6 +619,24 @@ class HandshakePattern {
     return getModifiers(getName()).contains("fallback");
   }
 
+  boolean isPreSharedKeyHandshake() {
+    return Arrays.stream(getHandshakeMessagePatterns())
+        .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
+        .anyMatch(token -> token == Token.PSK);
+  }
+
+  /**
+   * Returns the number of pre-shared keys either party in this handshake must provide prior to beginning the handshake.
+   *
+   * @return the number of pre-shared keys either party in this handshake must provide prior to beginning the handshake
+   */
+  int getRequiredPreSharedKeyCount() {
+    return Math.toIntExact(Arrays.stream(getHandshakeMessagePatterns())
+        .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
+        .filter(token -> token == Token.PSK)
+        .count());
+  }
+
   /**
    * Checks whether the party with the given role in this handshake must supply a local static key pair prior to
    * beginning the handshake.
@@ -656,24 +689,6 @@ class HandshakePattern {
         .filter(messagePattern -> messagePattern.sender() != role)
         .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
         .anyMatch(token -> token == Token.S);
-  }
-
-  boolean isPreSharedKeyHandshake() {
-    return Arrays.stream(getHandshakeMessagePatterns())
-        .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
-        .anyMatch(token -> token == Token.PSK);
-  }
-
-  /**
-   * Returns the number of pre-shared keys either party in this handshake must provide prior to beginning the handshake.
-   *
-   * @return the number of pre-shared keys either party in this handshake must provide prior to beginning the handshake
-   */
-  int getRequiredPreSharedKeyCount() {
-    return Math.toIntExact(Arrays.stream(getHandshakeMessagePatterns())
-        .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
-        .filter(token -> token == Token.PSK)
-        .count());
   }
 
   /**
