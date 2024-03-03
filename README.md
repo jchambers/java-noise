@@ -202,6 +202,14 @@ final byte[] aliceToBobPlaintext = responderTransport.readMessage(aliceToBobCiph
 assert Arrays.equals(aliceToBobPlaintext, originalPlaintextBytes);
 ```
 
+## Limitations and cut corners
+
+java-noise strives to be well-behaved, but its implementation makes a few minor deviations from pedantic correctness. In particular:
+
+- [IETF RFC 7693 ("The BLAKE2 Cryptographic Hash and Message Authentication Code (MAC)")](https://datatracker.ietf.org/doc/html/rfc7693), [section 2.1](https://datatracker.ietf.org/doc/html/rfc7693#section-2.1) specifies that BLAKE2b must support up to $2^{128}$ bytes of input data. The implementation included in java-noise only supports up to $2^{64}$. To put that limitation into perspective, though, BLAKE2b can hash about 1GiB/sec of input data on modern hardware. At that rate, it would take nearly 300 years of continuous work on a single input stream to encounter that limit. On top of that, the [Noise Protocol Framework specification, section 3](https://noiseprotocol.org/noise.html#message-format) specifies that Noise messages may not be more than 64KiB, and so this limitation is very unlikely to matter in any practical scenario.
+- Similarly, the [Noise Protocol Framework specification, section 5](https://noiseprotocol.org/noise.html#processing-rules) specifies that `CipherState` objects (practically exposed as `NoiseHandshake` and the `NoiseTransport` family of interfaces in java-noise) must fail and self-delete in the event of nonce rollover. java-noise does _not_ implement this check because the nonce is a 64-bit value, and assuming a transfer rate of 1,000,000 messages per second, encountering this limit would take nearly 300,000 years on modern hardware.
+- In the interest of avoiding "nuisance" exceptions (for example, declaring that `NoiseTransport#writeMessage` might throw a `NoSuchAlgorithmException`), java-noise assumes that if an implementation of a cryptographic algorithm can be instantiated once, it can be re-instantiated again later. In theory, this assumption may not always hold; an implementation of a cryptographic algorithm may be provided by a Java security `Provider` that is later removed. This situation is unlikely in practice (and callers operating in an environment where they do not control their security infrastructure likely have bigger problems), but if a previously-available algorithm becomes unavailable, various components of java-noise may throw an unchecked `AssertionError` instead of a `NoSuchAlgorithmException`.
+
 ## Test vectors
 
 Test vectors for this project come from several sources:
