@@ -6,7 +6,6 @@ import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
-import java.security.spec.InvalidKeySpecException;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -35,7 +34,7 @@ abstract class AbstractNoiseKeyAgreementTest {
   }
 
   @Test
-  void serializeDeserializePublicKey() throws NoSuchAlgorithmException, InvalidKeySpecException {
+  void serializeDeserializePublicKey() throws NoSuchAlgorithmException {
     final NoiseKeyAgreement keyAgreement = getKeyAgreement();
 
     final PublicKey originalPublicKey = keyAgreement.generateKeyPair().getPublic();
@@ -43,5 +42,15 @@ abstract class AbstractNoiseKeyAgreementTest {
         keyAgreement.deserializePublicKey(keyAgreement.serializePublicKey(originalPublicKey));
 
     assertEquals(originalPublicKey, deserializedPublicKey);
+  }
+
+  @Test
+  void checkPublicKey() {
+    assertDoesNotThrow(() -> getKeyAgreement().checkPublicKey(getKeyAgreement().generateKeyPair().getPublic()));
+  }
+
+  @Test
+  void checkKeyPair() {
+    assertDoesNotThrow(() -> getKeyAgreement().checkKeyPair(getKeyAgreement().generateKeyPair()));
   }
 }

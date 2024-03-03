@@ -2,7 +2,9 @@ package com.eatthepath.noise.component;
 
 import javax.crypto.KeyAgreement;
 import java.security.*;
+import java.security.interfaces.XECKey;
 import java.security.spec.InvalidKeySpecException;
+import java.security.spec.NamedParameterSpec;
 import java.security.spec.X509EncodedKeySpec;
 
 abstract class AbstractXECKeyAgreement implements NoiseKeyAgreement {
@@ -70,13 +72,26 @@ abstract class AbstractXECKeyAgreement implements NoiseKeyAgreement {
 
   @Override
   public void checkPublicKey(final PublicKey publicKey) throws InvalidKeyException {
-    checkKeyPair(new KeyPair(publicKey, generateKeyPair().getPrivate()));
+    checkKey(publicKey);
   }
 
   @Override
   public void checkKeyPair(final KeyPair keyPair) throws InvalidKeyException {
-    keyAgreement.init(keyPair.getPrivate());
-    keyAgreement.doPhase(keyPair.getPublic(), true);
-    keyAgreement.generateSecret();
+    checkKey(keyPair.getPublic());
+    checkKey(keyPair.getPrivate());
+  }
+
+  private void checkKey(final Key key) throws InvalidKeyException {
+    if (key instanceof XECKey xecKey) {
+      if (xecKey.getParams() instanceof NamedParameterSpec namedParameterSpec) {
+        if (!keyAgreement.getAlgorithm().equals(namedParameterSpec.getName())) {
+          throw new InvalidKeyException("Unexpected key algorithm: " + namedParameterSpec.getName());
+        }
+      } else {
+        throw new InvalidKeyException("Unexpected key parameter type: " + xecKey.getParams().getClass());
+      }
+    } else {
+      throw new InvalidKeyException("Unexpected key type: " + key.getClass());
+    }
   }
 }
