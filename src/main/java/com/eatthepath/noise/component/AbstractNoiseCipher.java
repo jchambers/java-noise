@@ -1,7 +1,6 @@
 package com.eatthepath.noise.component;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.ThreadSafe;
 import javax.crypto.*;
 import java.nio.ByteBuffer;
 import java.security.InvalidAlgorithmParameterException;
@@ -9,15 +8,18 @@ import java.security.InvalidKeyException;
 import java.security.Key;
 import java.security.spec.AlgorithmParameterSpec;
 
-@ThreadSafe
 abstract class AbstractNoiseCipher implements NoiseCipher {
+
+  private final Cipher cipher;
+
+  AbstractNoiseCipher(final Cipher cipher) {
+    this.cipher = cipher;
+  }
 
   @FunctionalInterface
   private interface CipherFinalizer<T> {
     T doFinal() throws IllegalBlockSizeException, BadPaddingException, ShortBufferException;
   }
-
-  protected abstract Cipher getCipher();
 
   protected abstract AlgorithmParameterSpec getAlgorithmParameters(final long nonce);
 
@@ -27,8 +29,6 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
                      @Nullable final ByteBuffer associatedData,
                      final ByteBuffer plaintext,
                      final ByteBuffer ciphertext) throws ShortBufferException {
-
-    final Cipher cipher = getCipher();
 
     initCipher(cipher, Cipher.ENCRYPT_MODE, key, nonce);
 
@@ -54,8 +54,6 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
                      final byte[] ciphertext,
                      final int ciphertextOffset) throws ShortBufferException {
 
-    final Cipher cipher = getCipher();
-
     initCipher(cipher, Cipher.ENCRYPT_MODE, key, nonce);
 
     if (associatedData != null) {
@@ -72,8 +70,6 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
                      @Nullable final ByteBuffer associatedData,
                      final ByteBuffer ciphertext,
                      final ByteBuffer plaintext) throws AEADBadTagException, ShortBufferException {
-
-    final Cipher cipher = getCipher();
 
     initCipher(cipher, Cipher.DECRYPT_MODE, key, nonce);
 
@@ -98,8 +94,6 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
                      final int ciphertextLength,
                      final byte[] plaintext,
                      final int plaintextOffset) throws AEADBadTagException, ShortBufferException {
-
-    final Cipher cipher = getCipher();
 
     initCipher(cipher, Cipher.DECRYPT_MODE, key, nonce);
 

@@ -4,9 +4,11 @@ import javax.crypto.ShortBufferException;
 import java.nio.ByteBuffer;
 
 /**
- * A Noise transport writer encrypts Noise transport messages. In the terminology of the Noise Protocol Framework
+ * <p>A Noise transport writer encrypts Noise transport messages. In the terminology of the Noise Protocol Framework
  * specification, a {@code NoiseTransportWriter} instance encapsulates a "cipher state" produced by "splitting" a
- * {@link NoiseHandshake} instance.
+ * {@link NoiseHandshake} instance.</p>
+ *
+ * <p>Noise transport writer instances are stateful and are <em>not</em> thread-safe.</p>
  *
  * @see NoiseHandshake#toTransportWriter()
  * @see NoiseHandshake#toTransport()

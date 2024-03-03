@@ -1,6 +1,5 @@
 package com.eatthepath.noise.component;
 
-import javax.annotation.concurrent.ThreadSafe;
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.GCMParameterSpec;
@@ -10,11 +9,13 @@ import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.AlgorithmParameterSpec;
 
-@ThreadSafe
 class AesGcmCipher extends AbstractNoiseCipher {
 
-  @Override
-  protected Cipher getCipher() {
+  AesGcmCipher() {
+    super(getCipher());
+  }
+
+  private static Cipher getCipher() {
     try {
       return Cipher.getInstance("AES/GCM/NoPadding");
     } catch (final NoSuchAlgorithmException | NoSuchPaddingException e) {

@@ -1,6 +1,5 @@
 package com.eatthepath.noise.component;
 
-import javax.annotation.concurrent.ThreadSafe;
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.IvParameterSpec;
@@ -11,23 +10,15 @@ import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.AlgorithmParameterSpec;
 
-@ThreadSafe
 class ChaCha20Poly1305Cipher extends AbstractNoiseCipher {
 
   private static final String ALGORITHM = "ChaCha20-Poly1305";
 
   public ChaCha20Poly1305Cipher() throws NoSuchAlgorithmException {
-    // Make sure that we can instantiate a cipher and fail fast if not
-    try {
-      Cipher.getInstance(ALGORITHM);
-    } catch (final NoSuchPaddingException e) {
-      // This should never happen since we're not specifying a padding
-      throw new AssertionError("Padding not supported, but no padding specified", e);
-    }
+    super(getCipher());
   }
 
-  @Override
-  protected Cipher getCipher() {
+  private static Cipher getCipher() {
     try {
       return Cipher.getInstance(ALGORITHM);
     } catch (final NoSuchPaddingException e) {

@@ -5,9 +5,11 @@ import javax.crypto.ShortBufferException;
 import java.nio.ByteBuffer;
 
 /**
- * A Noise transport reader decrypts Noise transport messages. In the terminology of the Noise
+ * <p>A Noise transport reader decrypts Noise transport messages. In the terminology of the Noise
  * Protocol Framework specification, a {@code NoiseTransportReader} instance encapsulates a "cipher state" produced by
- * "splitting" a {@link NoiseHandshake} instance.
+ * "splitting" a {@link NoiseHandshake} instance.</p>
+ *
+ * <p>Noise transport reader instances are stateful and are <em>not</em> thread-safe.</p>
  *
  * @see NoiseHandshake#toTransportReader()
  * @see NoiseHandshake#toTransport()

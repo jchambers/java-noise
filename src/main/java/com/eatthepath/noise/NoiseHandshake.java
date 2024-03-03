@@ -32,6 +32,8 @@ import java.util.Objects;
  * type (i.e. one-way or interactive) and pass Noise transport messages between the initiator and responder as
  * needed.</p>
  *
+ * <p>Noise handshake instances are stateful and are <em>not</em> thread-safe.</p>
+ *
  * <h2>Interactive patterns</h2>
  *
  * <p>In the most common case, Noise handshakes implement a interactive pattern in which both parties will send and

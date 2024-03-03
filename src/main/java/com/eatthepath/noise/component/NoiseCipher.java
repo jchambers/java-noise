@@ -1,7 +1,6 @@
 package com.eatthepath.noise.component;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.ThreadSafe;
 import javax.crypto.AEADBadTagException;
 import javax.crypto.ShortBufferException;
 import java.nio.ByteBuffer;
@@ -9,14 +8,10 @@ import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 
 /**
- * <p>A Noise cipher is a stateless object that encrypts and decrypts data for use in a Noise protocol. Noise cipher
- * implementations must be thread-safe (i.e. calling encryption/decryption methods on different sets of data
- * concurrently and from different threads must have no adverse effect).</p>
- *
- * <p>Noise cipher implementations must operate in AEAD mode, produce a 16-byte AEAD tag when encrypting data, and
- * verify a 16-byte AEAD tag when decrypting data.</p>
+ * A Noise cipher is a stateless object that encrypts and decrypts data for use in a Noise protocol. Noise cipher
+ * implementations must operate in AEAD mode, produce a 16-byte AEAD tag when encrypting data, and verify a 16-byte
+ * AEAD tag when decrypting data.
  */
-@ThreadSafe
 public interface NoiseCipher {
 
   /**
