@@ -341,6 +341,18 @@ class HandshakePattern {
 
   record MessagePattern(NoiseHandshake.Role sender, Token[] tokens) {
     @Override
+    public String toString() {
+      final String prefix = switch (sender()) {
+        case INITIATOR -> "  -> ";
+        case RESPONDER -> "  <- ";
+      };
+
+      return prefix + Arrays.stream(tokens())
+          .map(token -> token.name().toLowerCase())
+          .collect(Collectors.joining(", "));
+    }
+
+    @Override
     public boolean equals(final Object o) {
       if (this == o) return true;
       if (o == null || getClass() != o.getClass()) return false;
@@ -689,6 +701,31 @@ class HandshakePattern {
         .filter(messagePattern -> messagePattern.sender() != role)
         .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
         .anyMatch(token -> token == Token.S);
+  }
+
+  @Override
+  public String toString() {
+    final StringBuilder stringBuilder = new StringBuilder(getName() + ":\n");
+
+    // We know we can't end on a pre-message pattern line, so we can unconditionally append newlines after each
+    // pre-handshake message
+    Arrays.stream(getPreMessagePatterns())
+        .forEach(preMessagePattern -> {
+          stringBuilder.append(preMessagePattern);
+          stringBuilder.append('\n');
+        });
+
+    if (getPreMessagePatterns().length > 0) {
+      stringBuilder.append("  ");
+      stringBuilder.append(PRE_MESSAGE_SEPARATOR);
+      stringBuilder.append('\n');
+    }
+
+    stringBuilder.append(Arrays.stream(getHandshakeMessagePatterns())
+        .map(MessagePattern::toString)
+        .collect(Collectors.joining("\n")));
+
+    return stringBuilder.toString();
   }
 
   /**

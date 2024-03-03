@@ -88,6 +88,23 @@ class HandshakePatternTest {
     }
   }
 
+  @Test
+  void testToString() throws NoSuchPatternException {
+    assertEquals("""
+        XX:
+          -> e
+          <- e, ee, s, es
+          -> s, se""", HandshakePattern.getInstance("XX").toString());
+
+    assertEquals("""
+        KK:
+          -> s
+          <- s
+          ...
+          -> e, es, ss
+          <- e, ee, se""", HandshakePattern.getInstance("KK").toString());
+  }
+
   @ParameterizedTest
   @CsvSource({
       "XX,XX",
