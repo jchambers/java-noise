@@ -1364,4 +1364,26 @@ public class NoiseHandshake {
 
     return new NoiseTransportImpl(readerCipherState, writerCipherState);
   }
+
+  /**
+   * Returns a hash of this handshake's state that uniquely identifies the Noise session. May only be called once the
+   * handshake has been transformed into a transport instance.
+   *
+   * @return a hash of this handshake's state that uniquely identifies the Noise session
+   *
+   * @throws IllegalStateException if this handshake instance has not yet be transformed into a transport instance
+   *
+   * @see <a href="https://noiseprotocol.org/noise.html#channel-binding">The Noise Protocol Framework - Channel binding</a>
+   *
+   * @see #toTransport()
+   * @see #toTransportReader()
+   * @see #toTransportWriter()
+   */
+  public byte[] getHash() {
+    if (!hasSplit) {
+      throw new IllegalStateException("Cannot retrieve a handshake hash until handshake has been split into a transport instance");
+    }
+
+    return hash;
+  }
 }
