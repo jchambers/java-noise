@@ -39,10 +39,6 @@ class CipherState {
     return this.key != null;
   }
 
-  public void setNonce(final long nonce) {
-    this.nonce = nonce;
-  }
-
   public ByteBuffer decrypt(@Nullable final ByteBuffer associatedData, final ByteBuffer ciphertext)
       throws AEADBadTagException {
 
