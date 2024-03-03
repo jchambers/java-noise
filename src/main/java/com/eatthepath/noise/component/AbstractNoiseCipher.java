@@ -33,7 +33,10 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
     initCipher(cipher, Cipher.ENCRYPT_MODE, key, nonce);
 
     if (associatedData != null) {
-      cipher.updateAAD(associatedData);
+      final byte[] adBytes = new byte[associatedData.remaining()];
+      associatedData.get(adBytes);
+
+      cipher.updateAAD(adBytes);
     }
 
     return finishEncryption(() -> cipher.doFinal(plaintext, ciphertext));
@@ -75,7 +78,10 @@ abstract class AbstractNoiseCipher implements NoiseCipher {
     initCipher(cipher, Cipher.DECRYPT_MODE, key, nonce);
 
     if (associatedData != null) {
-      cipher.updateAAD(associatedData);
+      final byte[] adBytes = new byte[associatedData.remaining()];
+      associatedData.get(adBytes);
+
+      cipher.updateAAD(adBytes);
     }
 
     return finishDecryption(() -> cipher.doFinal(ciphertext, plaintext));
