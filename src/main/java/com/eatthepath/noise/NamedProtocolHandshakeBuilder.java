@@ -200,10 +200,10 @@ public class NamedProtocolHandshakeBuilder {
       throw new IllegalStateException(handshakePattern.getName() + " handshake pattern requires " + requiredPreSharedKeyCount + " pre-shared keys");
     }
 
-    // TODO Check key compatibility if applicable
-
-    return new NoiseHandshake(role, handshakePattern,
-        keyAgreement, cipher,
+    return new NoiseHandshake(role,
+        handshakePattern,
+        keyAgreement,
+        cipher,
         hash,
         prologue,
         localStaticKeyPair,
