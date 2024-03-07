@@ -20,9 +20,9 @@ All other algorithms named in the Noise Protocol Framework specification are sup
 
 ## Handshakes
 
-A Noise protocol begins with a handshake in which two parties (an initiator and a responder) exchange handshake messages that contain key material and optional payloads to negotiate a shared secret key and establish an ongoing session for Noise transport messages. Noise handshakes are described by ["handshake patterns"](https://noiseprotocol.org/noise.html#handshake-patterns), which prescribe the handshake messages exchanged between the initiator and responder. In java-noise, Noise handshakes are managed by NoiseHandshake instances.
+A Noise protocol begins with a handshake in which two parties (an initiator and a responder) exchange handshake messages that contain key material and optional payloads to negotiate a shared secret key and establish an ongoing session for Noise transport messages. Noise handshakes are described by ["handshake patterns"](https://noiseprotocol.org/noise.html#handshake-patterns), which prescribe the handshake messages exchanged between the initiator and responder. In java-noise, Noise handshakes are managed by `NoiseHandshake` instances.
 
-NoiseHandshake instances can be constructed using either a NoiseHandshakeBuilder, which provides static initializers for common Noise handshake patterns, or a NamedProtocolHandshakeBuilder, which allows for arbitrary handshake pattern names, but only offers runtime checks (as opposed to compile-time checks) that appropriate key material has been provided before building a NoiseHandshake instance.
+`NoiseHandshake` instances can be constructed using either a `NoiseHandshakeBuilder`, which provides static initializers for common Noise handshake patterns, or a `NamedProtocolHandshakeBuilder`, which allows for arbitrary handshake pattern names, but only offers runtime checks (as opposed to compile-time checks) that appropriate key material has been provided before building a `NoiseHandshake` instance.
 
 ### Interactive patterns
 
@@ -66,7 +66,7 @@ Noise handshakes may also use one-way patterns. As the Noise Protocol Framework 
 
 > These patterns could be used to encrypt files, database records, or other non-interactive data streams.
 
-One-way handshakes exchange handshake messages in the same way as interactive handshakes, but instead of producing interactive NoiseTransport instances, one-way handshakes produce a one-way NoiseTransportWriter for initiators or NoiseTransportReader for responders. As an example, the N handshake pattern is defined as:
+One-way handshakes exchange handshake messages in the same way as interactive handshakes, but instead of producing interactive `NoiseTransport` instances, one-way handshakes produce a one-way `NoiseTransportWriter` for initiators or `NoiseTransportReader` for responders. As an example, the N handshake pattern is defined as:
 
 ```
 N:
@@ -183,11 +183,11 @@ Once the handshake is finished, the transition to the transport phase of the pro
 
 ## Transports
 
-Once the handshake phase of a Noise protocol has finished, NoiseHandshake instances may be transformed or "split" (in the terminology of the Noise Protocol Framework specification) into Noise transport objects. Depending on the nature of the handshake and the role of the party in the handshake, a NoiseHandshake instance may be transformed into exactly one of:
+Once the handshake phase of a Noise protocol has finished, `NoiseHandshake` instances may be transformed or "split" (in the terminology of the Noise Protocol Framework specification) into Noise transport objects. Depending on the nature of the handshake and the role of the party in the handshake, a `NoiseHandshake` instance may be transformed into exactly one of:
 
-- A NoiseTransportWriter if the handshake is a one-way handshake for the handshake initiator
-- A NoiseTransportReader if the handshake is a one-way handshake for the handshake responder
-- A NoiseTransport if the handshake is interactive
+- A `NoiseTransportWriter` if the handshake is a one-way handshake for the handshake initiator
+- A `NoiseTransportReader` if the handshake is a one-way handshake for the handshake responder
+- A `NoiseTransport` if the handshake is interactive
 
 Once a handshake has been split, a Noise transport instance can be used to exchange transport messages as needed. Note that unlike handshake messages, transport messages contain only payload ciphertexts (i.e. they do not contain key material, and their content is always encrypted). As an example starting from a finished interactive handshake:
 
@@ -223,4 +223,4 @@ Test vectors for this project come from several sources:
 2. java-noise uses parts of the "fallback" test vectors from the [noise-c](https://github.com/rweather/noise-c) project, but without the PSK-related fallback tests, since noise-c's PSK implementation appears to adhere to an earlier version of the Noise specification
 3. Test vectors for the BLAKE2 algorithms come from the [BLAKE2](https://www.blake2.net/) project
 
-The general idea behind Noise test vecors is [explained on the Noise wiki](https://github.com/noiseprotocol/noise_wiki/wiki/Test-vectors), though most publicly available test vectors seem to deviate from the format described on the wiki to some degree.
+The general idea behind Noise test vectors is [explained on the Noise wiki](https://github.com/noiseprotocol/noise_wiki/wiki/Test-vectors), though most publicly available test vectors seem to deviate from the format described on the wiki to some degree.
