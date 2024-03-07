@@ -26,7 +26,7 @@ NoiseHandshake instances can be constructed using either a NoiseHandshakeBuilder
 
 ### Interactive patterns
 
-In the most common case, Noise handshakes implement a interactive pattern in which both parties will send and receive messages to one another once the handshake is complete. As an example, the NN interactive handshake pattern is defined as:
+In the most common case, Noise handshakes implement an interactive pattern in which both parties will send and receive messages to one another once the handshake is complete. As an example, the NN interactive handshake pattern is defined as:
 
 ```
 NN:

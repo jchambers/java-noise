@@ -36,7 +36,7 @@ import java.util.Objects;
  *
  * <h2>Interactive patterns</h2>
  *
- * <p>In the most common case, Noise handshakes implement a interactive pattern in which both parties will send and
+ * <p>In the most common case, Noise handshakes implement an interactive pattern in which both parties will send and
  * receive messages to one another once the handshake is complete. As an example, the NN interactive handshake pattern
  * is defined as:</p>
  *
@@ -462,7 +462,7 @@ public class NoiseHandshake {
    * Checks whether this is a handshake for a one-way Noise handshake pattern.
    *
    * @return {@code true} if this is a handshake for a one-way Noise handshake pattern or {@code false} if this is a
-   * handshake for a interactive Noise handshake pattern
+   * handshake for an interactive Noise handshake pattern
    */
   public boolean isOneWayHandshake() {
     return handshakePattern.isOneWayPattern();
@@ -1345,10 +1345,10 @@ public class NoiseHandshake {
   }
 
   /**
-   * Builds a interactive Noise transport object from this handshake. This method may be called exactly once, only if
-   * this is a interactive (i.e. not one-way) handshake, and only when the handshake is done.
+   * Builds an interactive Noise transport object from this handshake. This method may be called exactly once, only if
+   * this is an interactive (i.e. not one-way) handshake, and only when the handshake is done.
    *
-   * @return a interactive Noise transport object derived from this completed handshake
+   * @return an interactive Noise transport object derived from this completed handshake
    *
    * @throws IllegalStateException if this is a one-way handshake, the handshake has not finished, or this handshake has
    * previously been "split" into a Noise transport object
@@ -1358,7 +1358,7 @@ public class NoiseHandshake {
    */
   public NoiseTransport toTransport() {
     if (handshakePattern.isOneWayPattern()) {
-      throw new IllegalStateException("Cannot split a handshake for a one-way pattern into a interactive transport instance");
+      throw new IllegalStateException("Cannot split a handshake for a one-way pattern into an interactive transport instance");
     }
 
     return split();
