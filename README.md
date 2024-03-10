@@ -224,3 +224,9 @@ Test vectors for this project come from several sources:
 3. Test vectors for the BLAKE2 algorithms come from the [BLAKE2](https://www.blake2.net/) project
 
 The general idea behind Noise test vectors is [explained on the Noise wiki](https://github.com/noiseprotocol/noise_wiki/wiki/Test-vectors), though most publicly available test vectors seem to deviate from the format described on the wiki to some degree.
+
+## License and status
+
+java-noise is published under the [MIT License](https://opensource.org/licenses/MIT).
+
+java-noise has not yet been published to any artifact repository, but likely will be in the future following a self-imposed "cooling down" period. java-noise passes tests from a variety of sources, but has not received an independent security audit of any kind.
