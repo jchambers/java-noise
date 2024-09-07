@@ -815,6 +815,10 @@ class HandshakePattern {
         .anyMatch(token -> token == Token.S);
   }
 
+  boolean requiresKeyEncapsulationMechanism() {
+    return getModifiers(getName()).contains("hfs");
+  }
+
   @Override
   public String toString() {
     final StringBuilder stringBuilder = new StringBuilder(getName() + ":\n");

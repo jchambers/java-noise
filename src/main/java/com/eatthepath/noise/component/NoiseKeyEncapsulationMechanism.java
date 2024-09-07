@@ -1,6 +1,7 @@
 package com.eatthepath.noise.component;
 
 import javax.crypto.KEM;
+import javax.crypto.KEM;
 import javax.crypto.SecretKey;
 import java.security.KeyPair;
 import java.security.PrivateKey;
@@ -16,13 +17,17 @@ public interface NoiseKeyEncapsulationMechanism {
 
   KeyPair generateKeyPair();
 
+  /**
+   *
+   * @param publicKey the remote public key with which to encapsulate a shared secret
+   *
+   * @return an encapsulated shared secret key
+   */
   KEM.Encapsulated encapsulate(PublicKey publicKey);
 
   byte[] decapsulate(PrivateKey privateKey, byte[] encapsulation);
 
   int getPublicKeyLength();
-
-  int getSharedSecretLength();
 
   int getEncapsulationLength();
 

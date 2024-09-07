@@ -188,10 +188,13 @@ public class NoiseHandshakeBuilder {
         keyAgreement,
         cipher,
         hash,
+        null,
         prologue,
         localStaticKeyPair,
         null,
+        null,
         remoteStaticPublicKey,
+        null,
         null,
         preSharedKey != null ? List.of(preSharedKey) : null);
   }
