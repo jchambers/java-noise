@@ -476,48 +476,69 @@ class HandshakePattern {
   }
 
   HandshakePattern withModifier(final String modifier) {
-    final MessagePattern[] modifiedPreMessagePatterns;
-    final MessagePattern[] modifiedHandshakeMessagePatterns;
+    final MessagePattern[][] modifiedMessagePatterns;
 
     if ("fallback".equals(modifier)) {
-      if (!isValidFallbackMessagePattern(handshakeMessagePatterns[0])) {
-        throw new IllegalStateException("Cannot generate fallback pattern; first message pattern is not a fallback-eligible message pattern");
-      }
-
-      modifiedPreMessagePatterns = new MessagePattern[getPreMessagePatterns().length + 1];
-      modifiedHandshakeMessagePatterns = new MessagePattern[getHandshakeMessagePatterns().length - 1];
-
-      System.arraycopy(getPreMessagePatterns(), 0, modifiedPreMessagePatterns, 0, getPreMessagePatterns().length);
-      modifiedPreMessagePatterns[modifiedPreMessagePatterns.length - 1] = getHandshakeMessagePatterns()[0];
-
-      System.arraycopy(getHandshakeMessagePatterns(), 1, modifiedHandshakeMessagePatterns, 0, getHandshakeMessagePatterns().length - 1);
+      modifiedMessagePatterns = getPatternsWithFallbackModifier();
     } else if (modifier.startsWith("psk")) {
-      final int pskIndex = Integer.parseInt(modifier.substring("psk".length()));
-
-      modifiedPreMessagePatterns = getPreMessagePatterns().clone();
-      modifiedHandshakeMessagePatterns = getHandshakeMessagePatterns().clone();
-
-      if (pskIndex == 0) {
-        // Insert a PSK token at the start of the first message
-        final Token[] originalTokens = modifiedHandshakeMessagePatterns[0].tokens();
-        final Token[] modifiedTokens = new Token[originalTokens.length + 1];
-        modifiedTokens[0] = Token.PSK;
-        System.arraycopy(originalTokens, 0, modifiedTokens, 1, originalTokens.length);
-
-        modifiedHandshakeMessagePatterns[0] = new MessagePattern(modifiedHandshakeMessagePatterns[0].sender, modifiedTokens);
-      } else {
-        // Insert a PSK at the end of the N-1st message
-        final Token[] originalTokens = modifiedHandshakeMessagePatterns[pskIndex - 1].tokens();
-        final Token[] modifiedTokens = new Token[originalTokens.length + 1];
-        modifiedTokens[modifiedTokens.length - 1] = Token.PSK;
-        System.arraycopy(originalTokens, 0, modifiedTokens, 0, originalTokens.length);
-
-        modifiedHandshakeMessagePatterns[pskIndex - 1] = new MessagePattern(modifiedHandshakeMessagePatterns[pskIndex - 1].sender, modifiedTokens);
-      }
+      modifiedMessagePatterns = getPatternsWithPskModifier(modifier);
     } else {
       throw new IllegalArgumentException("Unrecognized modifier: " + modifier);
     }
 
+    assert modifiedMessagePatterns.length == 2;
+
+    return new HandshakePattern(getModifiedName(modifier), modifiedMessagePatterns[0], modifiedMessagePatterns[1]);
+  }
+
+  private MessagePattern[][] getPatternsWithFallbackModifier() {
+    if (!isValidFallbackMessagePattern(handshakeMessagePatterns[0])) {
+      throw new IllegalStateException("Cannot generate fallback pattern; first message pattern is not a fallback-eligible message pattern");
+    }
+
+    final MessagePattern[] modifiedPreMessagePatterns = new MessagePattern[getPreMessagePatterns().length + 1];
+    final MessagePattern[] modifiedHandshakeMessagePatterns =
+        new MessagePattern[getHandshakeMessagePatterns().length - 1];
+
+    System.arraycopy(getPreMessagePatterns(), 0, modifiedPreMessagePatterns, 0, getPreMessagePatterns().length);
+    modifiedPreMessagePatterns[modifiedPreMessagePatterns.length - 1] = getHandshakeMessagePatterns()[0];
+
+    System.arraycopy(getHandshakeMessagePatterns(), 1, modifiedHandshakeMessagePatterns,
+        0, getHandshakeMessagePatterns().length - 1);
+
+    return new MessagePattern[][] { modifiedPreMessagePatterns, modifiedHandshakeMessagePatterns };
+  }
+
+  private MessagePattern[][] getPatternsWithPskModifier(final String modifier) {
+    final int pskIndex = Integer.parseInt(modifier.substring("psk".length()));
+
+    final MessagePattern[] modifiedPreMessagePatterns = getPreMessagePatterns().clone();
+    final MessagePattern[] modifiedHandshakeMessagePatterns = getHandshakeMessagePatterns().clone();
+
+    if (pskIndex == 0) {
+      // Insert a PSK token at the start of the first message
+      final Token[] originalTokens = modifiedHandshakeMessagePatterns[0].tokens();
+      final Token[] modifiedTokens = new Token[originalTokens.length + 1];
+      modifiedTokens[0] = Token.PSK;
+      System.arraycopy(originalTokens, 0, modifiedTokens, 1, originalTokens.length);
+
+      modifiedHandshakeMessagePatterns[0] =
+          new MessagePattern(modifiedHandshakeMessagePatterns[0].sender, modifiedTokens);
+    } else {
+      // Insert a PSK at the end of the N-1st message
+      final Token[] originalTokens = modifiedHandshakeMessagePatterns[pskIndex - 1].tokens();
+      final Token[] modifiedTokens = new Token[originalTokens.length + 1];
+      modifiedTokens[modifiedTokens.length - 1] = Token.PSK;
+      System.arraycopy(originalTokens, 0, modifiedTokens, 0, originalTokens.length);
+
+      modifiedHandshakeMessagePatterns[pskIndex - 1] =
+          new MessagePattern(modifiedHandshakeMessagePatterns[pskIndex - 1].sender, modifiedTokens);
+    }
+
+    return new MessagePattern[][] { modifiedPreMessagePatterns, modifiedHandshakeMessagePatterns };
+  }
+
+  private String getModifiedName(final String modifier) {
     final String modifiedName;
 
     if (getName().equals(getFundamentalPatternName(getName()))) {
@@ -527,7 +548,7 @@ class HandshakePattern {
       modifiedName = getName() + "+" + modifier;
     }
 
-    return new HandshakePattern(modifiedName, modifiedPreMessagePatterns, modifiedHandshakeMessagePatterns);
+    return modifiedName;
   }
 
   static boolean isValidFallbackMessagePattern(final MessagePattern messagePattern) {
