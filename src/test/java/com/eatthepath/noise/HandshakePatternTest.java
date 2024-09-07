@@ -169,6 +169,111 @@ class HandshakePatternTest {
     }
   }
 
+  @ParameterizedTest
+  @MethodSource
+  void withHfsModifier(final HandshakePattern expectedHfsPattern) throws NoSuchPatternException {
+    final String fundamentalPatternName = HandshakePattern.getFundamentalPatternName(expectedHfsPattern.getName());
+
+    assertEquals(expectedHfsPattern, HandshakePattern.getInstance(fundamentalPatternName).withModifier("hfs"));
+  }
+
+  private static List<HandshakePattern> withHfsModifier() {
+    return List.of(
+        HandshakePattern.fromString("""
+            NNhfs:
+              -> e, e1
+              <- e, ee, ekem1
+            """),
+
+        HandshakePattern.fromString("""
+            NKhfs:
+              <- s
+              ...
+              -> e, es, e1
+              <- e, ee, ekem1
+            """),
+
+        HandshakePattern.fromString("""
+            NXhfs:
+              -> e, e1
+              <- e, ee, ekem1, s, es
+            """),
+
+        HandshakePattern.fromString("""
+            XNhfs:
+              -> e, e1
+              <- e, ee, ekem1
+              -> s, se
+            """),
+
+        HandshakePattern.fromString("""
+            XKhfs:
+              <- s
+              ...
+              -> e, es, e1
+              <- e, ee, ekem1
+              -> s, se
+            """),
+
+        HandshakePattern.fromString("""
+            XXhfs:
+              -> e, e1
+              <- e, ee, ekem1, s, es
+              -> s, se
+            """),
+
+        HandshakePattern.fromString("""   
+            KNhfs:
+              -> s
+              ...
+              -> e, e1
+              <- e, ee, ekem1, se
+            """),
+
+        // Note that this is different from what's listed at https://github.com/noiseprotocol/noise_hfs_spec/blob/025f0f60cb3b94ad75b68e3a4158b9aac234f8cb/noise_hfs.md?plain=1#L130-L135;
+        // the specification (at the time of writing) appears to have a typo. Please see
+        // https://github.com/noiseprotocol/noise_hfs_spec/pull/3.
+        HandshakePattern.fromString("""   
+            KKhfs:
+              -> s
+              <- s
+              ...
+              -> e, es, e1, ss
+              <- e, ee, ekem1, se
+            """),
+
+        HandshakePattern.fromString("""
+            KXhfs:
+              -> s
+              ...
+              -> e, e1
+              <- e, ee, ekem1, se, s, es
+            """),
+
+        // This also deviates from the latest version of the spec to fix a typo (the `ee` token is missing in the
+        // current draft of the spec). Please see https://github.com/noiseprotocol/noise_hfs_spec/pull/4.
+        HandshakePattern.fromString("""
+            INhfs:
+              -> e, e1, s
+              <- e, ee, ekem1, se
+            """),
+
+        HandshakePattern.fromString("""
+            IKhfs:
+              <- s
+              ...
+              -> e, es, e1, s, ss
+              <- e, ee, ekem1, se
+            """),
+
+        HandshakePattern.fromString("""
+            IXhfs:
+              -> e, e1, s
+              <- e, ee, ekem1, se, s, es
+            """)
+    );
+  }
+
   @Test
   void withModifierUnrecognized() {
     assertThrows(IllegalArgumentException.class, () -> HandshakePattern.getInstance("XX").withModifier("fancy"));
@@ -252,5 +357,30 @@ class HandshakePatternTest {
 
     assertTrue(HandshakePattern.getInstance("KN").requiresRemoteStaticPublicKey(Role.RESPONDER));
     assertFalse(HandshakePattern.getInstance("KN").requiresRemoteStaticPublicKey(Role.INITIATOR));
+  }
+
+  @Test
+  void messagePatternWithAddedToken() {
+    final MessagePattern originalPattern = new HandshakePattern.MessagePattern(Role.INITIATOR,
+        new Token[] { Token.E, Token.EE, Token.SE });
+
+    assertEquals(new HandshakePattern.MessagePattern(Role.INITIATOR,
+        new Token[] { Token.E1, Token.E, Token.EE, Token.SE }),
+        originalPattern.withAddedToken(Token.E1, 0));
+
+    assertEquals(new HandshakePattern.MessagePattern(Role.INITIATOR,
+            new Token[] { Token.E, Token.E1, Token.EE, Token.SE }),
+        originalPattern.withAddedToken(Token.E1, 1));
+
+    assertEquals(new HandshakePattern.MessagePattern(Role.INITIATOR,
+            new Token[] { Token.E, Token.EE, Token.E1, Token.SE }),
+        originalPattern.withAddedToken(Token.E1, 2));
+
+    assertEquals(new HandshakePattern.MessagePattern(Role.INITIATOR,
+            new Token[] { Token.E, Token.EE, Token.SE, Token.E1 }),
+        originalPattern.withAddedToken(Token.E1, 3));
+
+    assertThrows(IllegalArgumentException.class, () -> originalPattern.withAddedToken(Token.E1, -1));
+    assertThrows(IllegalArgumentException.class, () -> originalPattern.withAddedToken(Token.E1, 4));
   }
 }

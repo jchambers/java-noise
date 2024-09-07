@@ -349,6 +349,7 @@ public class NoiseHandshake {
               }
               case EE, ES, SE, SS, PSK ->
                   throw new IllegalArgumentException("Key-mixing tokens must not appear in pre-messages");
+              case E1, EKEM1 -> throw new UnsupportedOperationException();
             }))
         .forEach(publicKey -> mixHash(keyAgreement.serializePublicKey(publicKey)));
   }
