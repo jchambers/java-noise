@@ -13,7 +13,8 @@ class GenerateHandshakeBuilderApp {
       "XK1", "X1K1", "X1X", "XX1", "X1X1", "K1N", "K1K", "KK1", "K1K1", "K1X", "KX1", "K1X1", "I1N", "I1K", "IK1",
       "I1K1", "I1X", "IX1", "I1X1", "Npsk0", "Kpsk0", "Xpsk1", "NNpsk0", "NNpsk2", "NKpsk0", "NKpsk2", "NXpsk2",
       "XNpsk3", "XKpsk3", "XXpsk3", "KNpsk0", "KNpsk2", "KKpsk0", "KKpsk2", "KXpsk2", "INpsk1", "INpsk2", "IKpsk1",
-      "IKpsk2", "IXpsk2"
+      "IKpsk2", "IXpsk2", "NNhfs", "KNhfs", "NKhfs", "KKhfs", "NXhfs", "KXhfs", "XNhfs", "INhfs", "XKhfs", "IKhfs",
+      "XXhfs", "IXhfs"
   };
 
   private static final String INITIALIZER_TEMPLATE = """

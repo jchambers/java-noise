@@ -838,7 +838,7 @@ public class NoiseHandshake {
           localKeyEncapsulationKeyPair = keyEncapsulationMechanism.generateKeyPair();
 
           final KEM.Encapsulated encapsulated =
-              keyEncapsulationMechanism.encapsulate(localKeyEncapsulationKeyPair.getPrivate(), remoteKeyEncapsulationPublicKey);
+              keyEncapsulationMechanism.encapsulate(remoteKeyEncapsulationPublicKey);
 
           try {
             offset += encryptAndHash(encapsulated.encapsulation(),
@@ -1010,7 +1010,7 @@ public class NoiseHandshake {
           localKeyEncapsulationKeyPair = keyEncapsulationMechanism.generateKeyPair();
 
           final KEM.Encapsulated encapsulated =
-              keyEncapsulationMechanism.encapsulate(localKeyEncapsulationKeyPair.getPrivate(), remoteKeyEncapsulationPublicKey);
+              keyEncapsulationMechanism.encapsulate(remoteKeyEncapsulationPublicKey);
 
           try {
             bytesWritten += encryptAndHash(ByteBuffer.wrap(encapsulated.encapsulation()), message);

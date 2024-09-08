@@ -10,18 +10,20 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * A Noise handshake builder constructs {@link NoiseHandshake} instances with known handshake patterns and roles.
+ * <p>A Noise handshake builder constructs {@link NoiseHandshake} instances with known handshake patterns and roles.
  * In contrast to {@link NamedProtocolHandshakeBuilder}, this builder provides compile-time checks that all required
  * keys are provided, but places the burden of selecting protocol components (key agreement algorithms, ciphers, and
- * hash algorithms) on the caller.
- * <p>
- * Callers may specify the cryptographic components of a Noise protocol by providing a full Noise protocol name…
- * <p>
+ * hash algorithms) on the caller.</p>
+ *
+ * <p>Callers may specify the cryptographic components of a Noise protocol by providing a full Noise protocol name…</p>
+ *
  * {@snippet file="NoiseHandshakeBuilderExample.java" region="ik-handshake-protocol-name"}
- * <p>
- * …or by specifying the name of each component individually:
- * <p>
+ *
+ * <p>…or by specifying the name of each component individually:</p>
+ *
  * {@snippet file="NoiseHandshakeBuilderExample.java" region="ik-handshake-component-names"}
+ *
+ * @see NamedProtocolHandshakeBuilder
  */
 @SuppressWarnings("unused")
 public class NoiseHandshakeBuilder {
@@ -38,6 +40,7 @@ public class NoiseHandshakeBuilder {
   @Nullable private NoiseCipher cipher;
   @Nullable private NoiseHash hash;
   @Nullable private NoiseKeyAgreement keyAgreement;
+  @Nullable private NoiseKeyEncapsulationMechanism keyEncapsulationMechanism;
 
   private NoiseHandshakeBuilder(final NoiseHandshake.Role role,
                                 final HandshakePattern handshakePattern,
@@ -139,9 +142,19 @@ public class NoiseHandshakeBuilder {
   }
 
   /**
-   * Sets the key agreement algorithm to be used by this handshake.
+   * <p>Sets the key agreement algorithm to be used by this handshake. Note that key agreement names may be coupled with
+   * a key encapsulation mechanism name as described in Section 5 of "KEM-based Hybrid Forward Secrecy for Noise," which
+   * says, in part:</p>
    *
-   * @param keyAgreementName the name of the Noise key agreement to be used by this handshake
+   * <blockquote>When the "hfs" modifier is used, the DH name section must contain a KEM algorithm name directly
+   * following the DH algorithm name, separated by a plus sign.</blockquote>
+   *
+   * <p>Calling this method with a KEM algorithm name in the {@code keyAgreementName} argument is the equivalent of
+   * calling this method with the bare key agreement algorithm name, then calling
+   * {@link #setKeyEncapsulationMechanism(String)} (String)} with the KEM algorithm name.</p>
+   *
+   * @param keyAgreementName the name of the Noise key agreement (possibly including a KEM algorithm) to be used by
+   * this handshake
    *
    * @return a reference to this handshake builder
    *
@@ -149,9 +162,44 @@ public class NoiseHandshakeBuilder {
    * @throws IllegalArgumentException if the given name is not recognized as a Noise key agreement algorithm name
    *
    * @see NoiseCipher#getInstance(String)
+   * @see <a href="https://github.com/noiseprotocol/noise_hfs_spec/blob/025f0f60cb3b94ad75b68e3a4158b9aac234f8cb/noise_hfs.md?plain=1#L84-L85">KEM-based Hybrid Forward Secrecy for Noise, Section 5: The "hfs" modifier</a>
    */
   public NoiseHandshakeBuilder setKeyAgreement(final String keyAgreementName) throws NoSuchAlgorithmException {
-    this.keyAgreement = NoiseKeyAgreement.getInstance(Objects.requireNonNull(keyAgreementName, "Key agreement algorithm must not be null"));
+    final int separatorIndex = Objects.requireNonNull(keyAgreementName, "Key agreement algorithm must not be null")
+        .indexOf('+');
+
+    final String keyAgreementComponent;
+
+    if (separatorIndex == -1) {
+      keyAgreementComponent = keyAgreementName;
+    } else {
+      keyAgreementComponent = keyAgreementName.substring(0, separatorIndex);
+      final String keyEncapsulationMechanismComponent = keyAgreementName.substring(separatorIndex);
+
+      this.setKeyEncapsulationMechanism(keyEncapsulationMechanismComponent);
+    }
+
+    this.keyAgreement = NoiseKeyAgreement.getInstance(keyAgreementComponent);
+
+    return this;
+  }
+
+  /**
+   * Sets the key encapsulation mechanism to be used by this handshake.
+   *
+   * @param keyEncapsulationMechanismName the name of the Noise key encapsulation mechanism to be used by this handshake
+   *
+   * @return a reference ot this handshake builder
+   *
+   * @throws NoSuchAlgorithmException if the named algorithm is not supported by the current JVM
+   * @throws IllegalArgumentException if the given name is not recognized as a Noise key encapsulation mechanism
+   *
+   * @see NoiseKeyEncapsulationMechanism#getInstance(String)
+   */
+  public NoiseHandshakeBuilder setKeyEncapsulationMechanism(final String keyEncapsulationMechanismName) throws NoSuchAlgorithmException {
+    this.keyEncapsulationMechanism = NoiseKeyEncapsulationMechanism.getInstance(
+        Objects.requireNonNull(keyEncapsulationMechanismName, "Key encapsulation mechanism name must not be null"));
+
     return this;
   }
 
@@ -181,15 +229,24 @@ public class NoiseHandshakeBuilder {
       throw new IllegalArgumentException("Must set a key agreement algorithm before building a Noise handshake");
     }
 
+    if (handshakePattern.requiresKeyEncapsulationMechanism() && keyEncapsulationMechanism == null) {
+      throw new IllegalArgumentException("Must set a key encapsulation mechanism before building a Noise handshake with an HFS pattern");
+    } else if (!handshakePattern.requiresKeyEncapsulationMechanism() && keyEncapsulationMechanism != null) {
+      throw new IllegalArgumentException("Must not specify a key encapsulation mechanism for a non-HFS handshake pattern");
+    }
+
     return new NoiseHandshake(role,
         handshakePattern,
         keyAgreement,
         cipher,
         hash,
+        keyEncapsulationMechanism,
         prologue,
         localStaticKeyPair,
         null,
+        null,
         remoteStaticPublicKey,
+        null,
         null,
         preSharedKey != null ? List.of(preSharedKey) : null);
   }
