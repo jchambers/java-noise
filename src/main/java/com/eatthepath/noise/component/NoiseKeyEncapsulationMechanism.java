@@ -4,13 +4,17 @@ import javax.crypto.KEM;
 import javax.crypto.KEM;
 import javax.crypto.SecretKey;
 import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 
 public interface NoiseKeyEncapsulationMechanism {
 
-  static NoiseKeyEncapsulationMechanism getInstance(final String name) {
-    throw new IllegalArgumentException("Unrecognized key encapsulation method name: " + name);
+  static NoiseKeyEncapsulationMechanism getInstance(final String name) throws NoSuchAlgorithmException {
+    return switch (name) {
+      case "DHKEM" -> new DhkemKeyEncapsulationMechanism();
+      default -> throw new IllegalArgumentException("Unrecognized key encapsulation method name: " + name);
+    };
   }
 
   String getName();

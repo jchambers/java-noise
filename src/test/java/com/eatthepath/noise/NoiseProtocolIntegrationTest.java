@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Named;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -18,6 +19,7 @@ import javax.crypto.AEADBadTagException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.security.spec.NamedParameterSpec;
 import java.util.List;
@@ -664,5 +666,79 @@ public class NoiseProtocolIntegrationTest {
     } catch (final InvalidAlgorithmParameterException | NoSuchAlgorithmException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  @Test
+  void dhkemHfs() throws NoSuchAlgorithmException, AEADBadTagException {
+    final NoiseHandshake initiatorHandshake = NoiseHandshakeBuilder.forNNHfsInitiator()
+        .setKeyAgreement("25519")
+        .setKeyEncapsulationMechanism("DHKEM")
+        .setCipher("AESGCM")
+        .setHash("SHA256")
+        .build();
+
+    final NoiseHandshake responderHandshake = NoiseHandshakeBuilder.forNNHfsResponder()
+        .setKeyAgreement("25519")
+        .setKeyEncapsulationMechanism("DHKEM")
+        .setCipher("AESGCM")
+        .setHash("SHA256")
+        .build();
+
+    // -> e (with an empty payload)
+    final byte[] initiatorEMessage = initiatorHandshake.writeMessage((byte[]) null);
+    responderHandshake.readMessage(initiatorEMessage);
+
+    // <- e, ee (with an empty payload)
+    final byte[] responderEEeMessage = responderHandshake.writeMessage((byte[]) null);
+    initiatorHandshake.readMessage(responderEEeMessage);
+
+    assertTrue(initiatorHandshake.isDone());
+    assertTrue(responderHandshake.isDone());
+
+    final NoiseTransport initiatorTransport = initiatorHandshake.toTransport();
+    final NoiseTransport responderTransport = responderHandshake.toTransport();
+
+    final byte[] originalPlaintext = "Original payload!".getBytes(StandardCharsets.UTF_8);
+    final byte[] originalCiphertext = initiatorTransport.writeMessage(originalPlaintext);
+    final byte[] decryptedPlaintext = responderTransport.readMessage(originalCiphertext);
+
+    assertArrayEquals(originalPlaintext, decryptedPlaintext);
+  }
+
+  @Test
+  void dhkemHfsByteBuffer() throws NoSuchAlgorithmException, AEADBadTagException {
+    final NoiseHandshake initiatorHandshake = NoiseHandshakeBuilder.forNNHfsInitiator()
+        .setKeyAgreement("25519")
+        .setKeyEncapsulationMechanism("DHKEM")
+        .setCipher("AESGCM")
+        .setHash("SHA256")
+        .build();
+
+    final NoiseHandshake responderHandshake = NoiseHandshakeBuilder.forNNHfsResponder()
+        .setKeyAgreement("25519")
+        .setKeyEncapsulationMechanism("DHKEM")
+        .setCipher("AESGCM")
+        .setHash("SHA256")
+        .build();
+
+    // -> e (with an empty payload)
+    final ByteBuffer initiatorEMessage = initiatorHandshake.writeMessage((ByteBuffer) null);
+    responderHandshake.readMessage(initiatorEMessage);
+
+    // <- e, ee (with an empty payload)
+    final ByteBuffer responderEEeMessage = responderHandshake.writeMessage((ByteBuffer) null);
+    initiatorHandshake.readMessage(responderEEeMessage);
+
+    assertTrue(initiatorHandshake.isDone());
+    assertTrue(responderHandshake.isDone());
+
+    final NoiseTransport initiatorTransport = initiatorHandshake.toTransport();
+    final NoiseTransport responderTransport = responderHandshake.toTransport();
+
+    final ByteBuffer originalPlaintext = ByteBuffer.wrap("Original payload!".getBytes(StandardCharsets.UTF_8));
+    final ByteBuffer originalCiphertext = initiatorTransport.writeMessage(originalPlaintext);
+    final ByteBuffer decryptedPlaintext = responderTransport.readMessage(originalCiphertext);
+
+    assertEquals(originalPlaintext.rewind(), decryptedPlaintext);
   }
 }
