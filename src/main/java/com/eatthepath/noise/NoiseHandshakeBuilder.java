@@ -40,6 +40,7 @@ public class NoiseHandshakeBuilder {
   @Nullable private NoiseCipher cipher;
   @Nullable private NoiseHash hash;
   @Nullable private NoiseKeyAgreement keyAgreement;
+  @Nullable private NoiseKeyEncapsulationMechanism keyEncapsulationMechanism;
 
   private NoiseHandshakeBuilder(final NoiseHandshake.Role role,
                                 final HandshakePattern handshakePattern,
@@ -141,9 +142,19 @@ public class NoiseHandshakeBuilder {
   }
 
   /**
-   * Sets the key agreement algorithm to be used by this handshake.
+   * <p>Sets the key agreement algorithm to be used by this handshake. Note that key agreement names may be coupled with
+   * a key encapsulation mechanism name as described in Section 5 of "KEM-based Hybrid Forward Secrecy for Noise," which
+   * says, in part:</p>
    *
-   * @param keyAgreementName the name of the Noise key agreement to be used by this handshake
+   * <blockquote>When the "hfs" modifier is used, the DH name section must contain a KEM algorithm name directly
+   * following the DH algorithm name, separated by a plus sign.</blockquote>
+   *
+   * <p>Calling this method with a KEM algorithm name in the {@code keyAgreementName} argument is the equivalent of
+   * calling this method with the bare key agreement algorithm name, then calling
+   * {@link #setKeyEncapsulationMechanism(String)} with the KEM algorithm name.</p>
+   *
+   * @param keyAgreementName the name of the Noise key agreement (possibly including a KEM algorithm) to be used by
+   * this handshake
    *
    * @return a reference to this handshake builder
    *
@@ -151,9 +162,44 @@ public class NoiseHandshakeBuilder {
    * @throws IllegalArgumentException if the given name is not recognized as a Noise key agreement algorithm name
    *
    * @see NoiseCipher#getInstance(String)
+   * @see <a href="https://github.com/noiseprotocol/noise_hfs_spec/blob/025f0f60cb3b94ad75b68e3a4158b9aac234f8cb/noise_hfs.md?plain=1#L84-L85">KEM-based Hybrid Forward Secrecy for Noise, Section 5: The "hfs" modifier</a>
    */
   public NoiseHandshakeBuilder setKeyAgreement(final String keyAgreementName) throws NoSuchAlgorithmException {
-    this.keyAgreement = NoiseKeyAgreement.getInstance(Objects.requireNonNull(keyAgreementName, "Key agreement algorithm must not be null"));
+    final int separatorIndex = Objects.requireNonNull(keyAgreementName, "Key agreement algorithm must not be null")
+        .indexOf('+');
+
+    final String keyAgreementComponent;
+
+    if (separatorIndex == -1) {
+      keyAgreementComponent = keyAgreementName;
+    } else {
+      keyAgreementComponent = keyAgreementName.substring(0, separatorIndex);
+      final String keyEncapsulationMechanismComponent = keyAgreementName.substring(separatorIndex);
+
+      this.setKeyEncapsulationMechanism(keyEncapsulationMechanismComponent);
+    }
+
+    this.keyAgreement = NoiseKeyAgreement.getInstance(keyAgreementComponent);
+
+    return this;
+  }
+
+  /**
+   * Sets the key encapsulation mechanism to be used by this handshake.
+   *
+   * @param keyEncapsulationMechanismName the name of the Noise key encapsulation mechanism to be used by this handshake
+   *
+   * @return a reference ot this handshake builder
+   *
+   * @throws NoSuchAlgorithmException if the named algorithm is not supported by the current JVM
+   * @throws IllegalArgumentException if the given name is not recognized as a Noise key encapsulation mechanism
+   *
+   * @see NoiseKeyEncapsulationMechanism#getInstance(String)
+   */
+  public NoiseHandshakeBuilder setKeyEncapsulationMechanism(final String keyEncapsulationMechanismName) throws NoSuchAlgorithmException {
+    this.keyEncapsulationMechanism = NoiseKeyEncapsulationMechanism.getInstance(
+        Objects.requireNonNull(keyEncapsulationMechanismName, "Key encapsulation mechanism name must not be null"));
+
     return this;
   }
 
@@ -183,15 +229,24 @@ public class NoiseHandshakeBuilder {
       throw new IllegalArgumentException("Must set a key agreement algorithm before building a Noise handshake");
     }
 
+    if (handshakePattern.requiresKeyEncapsulationMechanism() && keyEncapsulationMechanism == null) {
+      throw new IllegalArgumentException("Must set a key encapsulation mechanism before building a Noise handshake with an HFS pattern");
+    } else if (!handshakePattern.requiresKeyEncapsulationMechanism() && keyEncapsulationMechanism != null) {
+      throw new IllegalArgumentException("Must not specify a key encapsulation mechanism for a non-HFS handshake pattern");
+    }
+
     return new NoiseHandshake(role,
         handshakePattern,
         keyAgreement,
         cipher,
         hash,
+        keyEncapsulationMechanism,
         prologue,
         localStaticKeyPair,
         null,
+        null,
         remoteStaticPublicKey,
+        null,
         null,
         preSharedKey != null ? List.of(preSharedKey) : null);
   }
@@ -3067,6 +3122,582 @@ public class NoiseHandshakeBuilder {
           Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
           null,
           Objects.requireNonNull(preSharedKey, "Pre-shared key must not be null"));
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the initiator in an
+   * NNhfs handshake.
+   *
+   *
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   *
+   */
+  public static NoiseHandshakeBuilder forNNHfsInitiator() {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("NNhfs"),
+          null,
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the responder in an
+   * NNhfs handshake.
+   *
+   *
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   *
+   */
+  public static NoiseHandshakeBuilder forNNHfsResponder() {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("NNhfs"),
+          null,
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the initiator in a
+   * KNhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forKNHfsInitiator(final KeyPair localStaticKeyPair) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("KNhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the responder in a
+   * KNhfs handshake.
+   *
+   *
+   * @param remoteStaticPublicKey the remote static public key for this handshake; must not be {@code null}
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forKNHfsResponder(final PublicKey remoteStaticPublicKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("KNhfs"),
+          null,
+          Objects.requireNonNull(remoteStaticPublicKey, "Remote static public key must not be null"),
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the initiator in an
+   * NKhfs handshake.
+   *
+   *
+   * @param remoteStaticPublicKey the remote static public key for this handshake; must not be {@code null}
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forNKHfsInitiator(final PublicKey remoteStaticPublicKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("NKhfs"),
+          null,
+          Objects.requireNonNull(remoteStaticPublicKey, "Remote static public key must not be null"),
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the responder in an
+   * NKhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forNKHfsResponder(final KeyPair localStaticKeyPair) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("NKhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the initiator in a
+   * KKhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   * @param remoteStaticPublicKey the remote static public key for this handshake; must not be {@code null}
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forKKHfsInitiator(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("KKhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          Objects.requireNonNull(remoteStaticPublicKey, "Remote static public key must not be null"),
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the responder in a
+   * KKhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   * @param remoteStaticPublicKey the remote static public key for this handshake; must not be {@code null}
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forKKHfsResponder(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("KKhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          Objects.requireNonNull(remoteStaticPublicKey, "Remote static public key must not be null"),
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the initiator in an
+   * NXhfs handshake.
+   *
+   *
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   *
+   */
+  public static NoiseHandshakeBuilder forNXHfsInitiator() {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("NXhfs"),
+          null,
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the responder in an
+   * NXhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forNXHfsResponder(final KeyPair localStaticKeyPair) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("NXhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the initiator in a
+   * KXhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forKXHfsInitiator(final KeyPair localStaticKeyPair) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("KXhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the responder in a
+   * KXhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   * @param remoteStaticPublicKey the remote static public key for this handshake; must not be {@code null}
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forKXHfsResponder(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("KXhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          Objects.requireNonNull(remoteStaticPublicKey, "Remote static public key must not be null"),
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the initiator in an
+   * XNhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forXNHfsInitiator(final KeyPair localStaticKeyPair) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("XNhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the responder in an
+   * XNhfs handshake.
+   *
+   *
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   *
+   */
+  public static NoiseHandshakeBuilder forXNHfsResponder() {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("XNhfs"),
+          null,
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the initiator in an
+   * INhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forINHfsInitiator(final KeyPair localStaticKeyPair) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("INhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the responder in an
+   * INhfs handshake.
+   *
+   *
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   *
+   */
+  public static NoiseHandshakeBuilder forINHfsResponder() {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("INhfs"),
+          null,
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the initiator in an
+   * XKhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   * @param remoteStaticPublicKey the remote static public key for this handshake; must not be {@code null}
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forXKHfsInitiator(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("XKhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          Objects.requireNonNull(remoteStaticPublicKey, "Remote static public key must not be null"),
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the responder in an
+   * XKhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forXKHfsResponder(final KeyPair localStaticKeyPair) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("XKhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the initiator in an
+   * IKhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   * @param remoteStaticPublicKey the remote static public key for this handshake; must not be {@code null}
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forIKHfsInitiator(final KeyPair localStaticKeyPair, final PublicKey remoteStaticPublicKey) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("IKhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          Objects.requireNonNull(remoteStaticPublicKey, "Remote static public key must not be null"),
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the responder in an
+   * IKhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forIKHfsResponder(final KeyPair localStaticKeyPair) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("IKhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the initiator in an
+   * XXhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forXXHfsInitiator(final KeyPair localStaticKeyPair) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("XXhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the responder in an
+   * XXhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forXXHfsResponder(final KeyPair localStaticKeyPair) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("XXhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the initiator in an
+   * IXhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forIXHfsInitiator(final KeyPair localStaticKeyPair) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.INITIATOR,
+          HandshakePattern.getInstance("IXhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          null,
+          null);
+    } catch (final NoSuchPatternException e) {
+      throw new AssertionError("Statically-generated handshake pattern not found", e);
+    }
+  }
+
+  /**
+   * Constructs a new Noise handshake builder for the responder in an
+   * IXhfs handshake.
+   *
+   * @param localStaticKeyPair the local static key pair for this handshake; must not be {@code null}
+   *
+   *
+   *
+   * @return a new Noise handshake builder
+   *
+   * @throws NullPointerException if any required key {@code null}
+   */
+  public static NoiseHandshakeBuilder forIXHfsResponder(final KeyPair localStaticKeyPair) {
+    try {
+      return new NoiseHandshakeBuilder(NoiseHandshake.Role.RESPONDER,
+          HandshakePattern.getInstance("IXhfs"),
+          Objects.requireNonNull(localStaticKeyPair, "Local static key pair must not be null"),
+          null,
+          null);
     } catch (final NoSuchPatternException e) {
       throw new AssertionError("Statically-generated handshake pattern not found", e);
     }

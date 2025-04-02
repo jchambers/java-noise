@@ -340,6 +340,21 @@ class HandshakePattern {
   }
 
   record MessagePattern(NoiseHandshake.Role sender, Token[] tokens) {
+
+    MessagePattern withAddedToken(final Token token, final int insertionIndex) {
+      if (insertionIndex < 0 || insertionIndex >= this.tokens().length + 1) {
+        throw new IllegalArgumentException("Illegal insertion index");
+      }
+
+      final Token[] modifiedTokens = new Token[this.tokens().length + 1];
+      System.arraycopy(this.tokens(), 0, modifiedTokens, 0, insertionIndex);
+      modifiedTokens[insertionIndex] = token;
+      System.arraycopy(this.tokens(), insertionIndex, modifiedTokens,
+          insertionIndex + 1, this.tokens().length - insertionIndex);
+
+      return new MessagePattern(this.sender(), modifiedTokens);
+    }
+
     @Override
     public String toString() {
       final String prefix = switch (sender()) {
@@ -375,18 +390,24 @@ class HandshakePattern {
     ES,
     SE,
     SS,
-    PSK;
+    PSK,
+    E1,
+    EKEM1;
 
     static Token fromString(final String string) {
-      return switch (string) {
-        case "e", "E" -> E;
-        case "s", "S" -> S;
-        case "ee", "EE" -> EE;
-        case "es", "ES" -> ES;
-        case "se", "SE" -> SE;
-        case "ss", "SS" -> SS;
-        case "psk", "PSK" -> PSK;
-        default -> throw new IllegalArgumentException("Unrecognized token: " + string);
+      for (final Token token : Token.values()) {
+        if (token.name().equalsIgnoreCase(string)) {
+          return token;
+        }
+      }
+
+      throw new IllegalArgumentException("Unrecognized token: " + string);
+    }
+
+    boolean isKeyAgreementToken() {
+      return switch (this) {
+        case EE, ES, SE, SS -> true;
+        default -> false;
       };
     }
   }
@@ -482,6 +503,8 @@ class HandshakePattern {
       modifiedMessagePatterns = getPatternsWithFallbackModifier();
     } else if (modifier.startsWith("psk")) {
       modifiedMessagePatterns = getPatternsWithPskModifier(modifier);
+    } else if ("hfs".equals(modifier)) {
+      modifiedMessagePatterns = getPatternsWithHfsModifier();
     } else {
       throw new IllegalArgumentException("Unrecognized modifier: " + modifier);
     }
@@ -534,6 +557,74 @@ class HandshakePattern {
       modifiedHandshakeMessagePatterns[pskIndex - 1] =
           new MessagePattern(modifiedHandshakeMessagePatterns[pskIndex - 1].sender, modifiedTokens);
     }
+
+    return new MessagePattern[][] { modifiedPreMessagePatterns, modifiedHandshakeMessagePatterns };
+  }
+
+  private MessagePattern[][] getPatternsWithHfsModifier() {
+    // Temporarily combine the pre-messages and "normal" messages to make iteration/state management easier
+    final MessagePattern[] messagePatterns =
+        new MessagePattern[getPreMessagePatterns().length + getHandshakeMessagePatterns().length];
+
+    System.arraycopy(getPreMessagePatterns(), 0, messagePatterns, 0, getPreMessagePatterns().length);
+    System.arraycopy(getHandshakeMessagePatterns(), 0, messagePatterns,
+        getPreMessagePatterns().length, getHandshakeMessagePatterns().length);
+
+    boolean insertedE1Token = false;
+    boolean insertedEkem1Token = false;
+
+    for (int i = 0; i < messagePatterns.length; i++) {
+      if (!insertedE1Token && Arrays.stream(messagePatterns[i].tokens()).anyMatch(token -> token == Token.E)) {
+        // We haven't inserted an E1 token yet, and this message pattern needs one. Exactly where it should go depends
+        // on whether this message pattern also contains a key agreement token, but either way, this pattern will wind
+        // up one token longer than it was when it started.
+        int insertionIndex = -1;
+
+        for (int t = 0; t < messagePatterns[i].tokens().length; t++) {
+          final Token token = messagePatterns[i].tokens()[t];
+
+          // TODO Prove that E must come before key agreement tokens
+          if (token == Token.E || token.isKeyAgreementToken()) {
+            insertionIndex = t + 1;
+
+            if (token.isKeyAgreementToken()) {
+              break;
+            }
+          }
+        }
+
+        messagePatterns[i] = messagePatterns[i].withAddedToken(Token.E1, insertionIndex);
+        insertedE1Token = true;
+      }
+
+      if (!insertedEkem1Token && Arrays.stream(messagePatterns[i].tokens()).anyMatch(token -> token == Token.EE)) {
+        // We haven't inserted an EKEM1 token yet, and this pattern needs one. EKEM1 tokens always go after the first
+        // EE token.
+        int insertionIndex = -1;
+
+        for (int t = 0; t < messagePatterns[i].tokens().length; t++) {
+          if (messagePatterns[i].tokens()[t] == Token.EE) {
+            insertionIndex = t + 1;
+            break;
+          }
+        }
+
+        messagePatterns[i] = messagePatterns[i].withAddedToken(Token.EKEM1, insertionIndex);
+        insertedEkem1Token = true;
+      }
+
+      if (insertedE1Token && insertedEkem1Token) {
+        // No need to inspect the rest of the message patterns if we've already inserted both of the HFS tokens
+        break;
+      }
+    }
+
+    final MessagePattern[] modifiedPreMessagePatterns = new MessagePattern[getPreMessagePatterns().length];
+    final MessagePattern[] modifiedHandshakeMessagePatterns = new MessagePattern[getHandshakeMessagePatterns().length];
+
+    System.arraycopy(messagePatterns, 0, modifiedPreMessagePatterns, 0, getPreMessagePatterns().length);
+    System.arraycopy(messagePatterns, getPreMessagePatterns().length,
+        modifiedHandshakeMessagePatterns, 0, getHandshakeMessagePatterns().length);
 
     return new MessagePattern[][] { modifiedPreMessagePatterns, modifiedHandshakeMessagePatterns };
   }
@@ -722,6 +813,10 @@ class HandshakePattern {
         .filter(messagePattern -> messagePattern.sender() != role)
         .flatMap(messagePattern -> Arrays.stream(messagePattern.tokens()))
         .anyMatch(token -> token == Token.S);
+  }
+
+  boolean requiresKeyEncapsulationMechanism() {
+    return getModifiers(getName()).contains("hfs");
   }
 
   @Override

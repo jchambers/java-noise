@@ -15,38 +15,40 @@ import static org.junit.jupiter.api.Assertions.*;
 class NoiseHandshakeTest {
 
   @Test
-  void getOutboundMessageLength() throws NoSuchPatternException {
-    final HandshakePattern handshakePattern = HandshakePattern.getInstance("XX");
-
-    final int publicKeyLength = 56;
+  void getOutboundMessageLength() throws NoSuchAlgorithmException {
+    final NoiseHandshake noiseHandshake =
+        NoiseHandshakeBuilder.forXXInitiator(NoiseKeyAgreement.getInstance("448").generateKeyPair())
+            .setComponentsFromProtocolName("Noise_XX_448_AESGCM_SHA256")
+            .build();
 
     // Expected lengths via https://noiseprotocol.org/noise.html#message-format
-    assertEquals(56, NoiseHandshake.getOutboundMessageLength(handshakePattern, 0, publicKeyLength, 0));
-    assertEquals(144, NoiseHandshake.getOutboundMessageLength(handshakePattern, 1, publicKeyLength, 0));
-    assertEquals(88, NoiseHandshake.getOutboundMessageLength(handshakePattern, 2, publicKeyLength, 0));
+    assertEquals(56, noiseHandshake.getOutboundMessageLength(0, 0));
+    assertEquals(144, noiseHandshake.getOutboundMessageLength(1, 0));
+    assertEquals(88, noiseHandshake.getOutboundMessageLength(2, 0));
 
-    assertEquals(59, NoiseHandshake.getOutboundMessageLength(handshakePattern, 0, publicKeyLength, 3));
-    assertEquals(149, NoiseHandshake.getOutboundMessageLength(handshakePattern, 1, publicKeyLength, 5));
-    assertEquals(95, NoiseHandshake.getOutboundMessageLength(handshakePattern, 2, publicKeyLength, 7));
+    assertEquals(59, noiseHandshake.getOutboundMessageLength(0, 3));
+    assertEquals(149, noiseHandshake.getOutboundMessageLength(1, 5));
+    assertEquals(95, noiseHandshake.getOutboundMessageLength(2, 7));
   }
 
   @Test
-  void getPayloadLength() throws NoSuchPatternException {
-    final HandshakePattern handshakePattern = HandshakePattern.getInstance("XX");
-
-    final int publicKeyLength = 56;
+  void getPayloadLength() throws NoSuchAlgorithmException {
+    final NoiseHandshake noiseHandshake =
+        NoiseHandshakeBuilder.forXXInitiator(NoiseKeyAgreement.getInstance("448").generateKeyPair())
+            .setComponentsFromProtocolName("Noise_XX_448_AESGCM_SHA256")
+            .build();
 
     // Expected lengths via https://noiseprotocol.org/noise.html#message-format
-    assertEquals(0, NoiseHandshake.getPayloadLength(handshakePattern, 0, publicKeyLength, 56));
-    assertEquals(0, NoiseHandshake.getPayloadLength(handshakePattern, 1, publicKeyLength, 144));
-    assertEquals(0, NoiseHandshake.getPayloadLength(handshakePattern, 2, publicKeyLength, 88));
+    assertEquals(0, noiseHandshake.getPayloadLength(0, 56));
+    assertEquals(0, noiseHandshake.getPayloadLength(1, 144));
+    assertEquals(0, noiseHandshake.getPayloadLength(2, 88));
 
-    assertEquals(3, NoiseHandshake.getPayloadLength(handshakePattern, 0, publicKeyLength, 59));
-    assertEquals(5, NoiseHandshake.getPayloadLength(handshakePattern, 1, publicKeyLength, 149));
-    assertEquals(7, NoiseHandshake.getPayloadLength(handshakePattern, 2, publicKeyLength, 95));
+    assertEquals(3, noiseHandshake.getPayloadLength(0, 59));
+    assertEquals(5, noiseHandshake.getPayloadLength(1, 149));
+    assertEquals(7, noiseHandshake.getPayloadLength(2, 95));
 
     assertThrows(IllegalArgumentException.class,
-        () -> NoiseHandshake.getPayloadLength(handshakePattern, 0, publicKeyLength, 55));
+        () -> noiseHandshake.getPayloadLength(0, 55));
   }
 
   @Test

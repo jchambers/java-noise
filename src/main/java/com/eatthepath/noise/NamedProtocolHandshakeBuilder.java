@@ -205,10 +205,13 @@ public class NamedProtocolHandshakeBuilder {
         keyAgreement,
         cipher,
         hash,
+        null,
         prologue,
         localStaticKeyPair,
         localEphemeralKeyPair,
+        null,
         remoteStaticPublicKey,
+        null,
         null,
         preSharedKeys);
   }

@@ -1,11 +1,10 @@
 package com.eatthepath.noise;
 
-import com.eatthepath.noise.component.NoiseCipher;
-import com.eatthepath.noise.component.NoiseHash;
-import com.eatthepath.noise.component.NoiseKeyAgreement;
+import com.eatthepath.noise.component.*;
 
 import javax.annotation.Nullable;
 import javax.crypto.AEADBadTagException;
+import javax.crypto.KEM;
 import javax.crypto.ShortBufferException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -141,6 +140,7 @@ public class NoiseHandshake {
   private final CipherState cipherState;
   private final NoiseHash noiseHash;
   private final NoiseKeyAgreement keyAgreement;
+  private final NoiseKeyEncapsulationMechanism keyEncapsulationMechanism;
 
   private final byte[] chainingKey;
   private final byte[] hash;
@@ -158,6 +158,12 @@ public class NoiseHandshake {
 
   @Nullable
   private PublicKey remoteStaticPublicKey;
+
+  @Nullable
+  private KeyPair localKeyEncapsulationKeyPair;
+
+  @Nullable
+  private PublicKey remoteKeyEncapsulationPublicKey;
 
   @Nullable
   private final List<byte[]> preSharedKeys;
@@ -189,11 +195,14 @@ public class NoiseHandshake {
                  final NoiseKeyAgreement keyAgreement,
                  final NoiseCipher noiseCipher,
                  final NoiseHash noiseHash,
+                 @Nullable final NoiseKeyEncapsulationMechanism keyEncapsulationMechanism,
                  @Nullable final byte[] prologue,
                  @Nullable final KeyPair localStaticKeyPair,
                  @Nullable final KeyPair localEphemeralKeyPair,
+                 @Nullable final KeyPair localKeyEncapsulationKeyPair,
                  @Nullable final PublicKey remoteStaticPublicKey,
                  @Nullable final PublicKey remoteEphemeralPublicKey,
+                 @Nullable final PublicKey remoteKeyEncapsulationPublicKey,
                  @Nullable final List<byte[]> preSharedKeys) {
 
     this.handshakePattern = handshakePattern;
@@ -202,6 +211,7 @@ public class NoiseHandshake {
     this.cipherState = new CipherState(noiseCipher);
     this.noiseHash = noiseHash;
     this.keyAgreement = keyAgreement;
+    this.keyEncapsulationMechanism = keyEncapsulationMechanism;
 
     if (handshakePattern.requiresLocalStaticKeyPair(role)) {
       if (localStaticKeyPair == null) {
@@ -267,6 +277,10 @@ public class NoiseHandshake {
       }
     }
 
+    if (handshakePattern.requiresKeyEncapsulationMechanism() && keyEncapsulationMechanism == null) {
+      throw new IllegalArgumentException(handshakePattern.getName() + " requires a key encapsulation mechanism");
+    }
+
     if (localEphemeralKeyPair != null) {
       try {
         keyAgreement.checkKeyPair(localEphemeralKeyPair);
@@ -279,13 +293,19 @@ public class NoiseHandshake {
 
     this.localStaticKeyPair = localStaticKeyPair;
     this.localEphemeralKeyPair = localEphemeralKeyPair;
+    this.localKeyEncapsulationKeyPair = localKeyEncapsulationKeyPair;
     this.remoteStaticPublicKey = remoteStaticPublicKey;
     this.remoteEphemeralPublicKey = remoteEphemeralPublicKey;
+    this.remoteKeyEncapsulationPublicKey = remoteKeyEncapsulationPublicKey;
     this.preSharedKeys = preSharedKeys;
+
+    final String keyAgreementSection = this.keyEncapsulationMechanism == null
+        ? keyAgreement.getName()
+        : keyAgreement.getName() + "+" + keyEncapsulationMechanism.getName();
 
     this.noiseProtocolName = "Noise_" +
         handshakePattern.getName() + "_" +
-        keyAgreement.getName() + "_" +
+        keyAgreementSection + "_" +
         noiseCipher.getName() + "_" +
         noiseHash.getName();
 
@@ -347,7 +367,22 @@ public class NoiseHandshake {
 
                 yield staticPublicKey;
               }
-              case EE, ES, SE, SS, PSK ->
+              case E1 -> {
+                final PublicKey keyEncapsulationPublicKey;
+
+                if (messagePattern.sender() == role) {
+                  keyEncapsulationPublicKey = localKeyEncapsulationKeyPair != null ? localKeyEncapsulationKeyPair.getPublic() : null;
+                } else {
+                  keyEncapsulationPublicKey = remoteKeyEncapsulationPublicKey;
+                }
+
+                if (keyEncapsulationPublicKey == null) {
+                  throw new IllegalStateException("Key encapsulation public key for " + messagePattern.sender() + " role must not be null");
+                }
+
+                yield keyEncapsulationPublicKey;
+              }
+              case EE, ES, SE, SS, PSK, EKEM1 ->
                   throw new IllegalArgumentException("Key-mixing tokens must not appear in pre-messages");
             }))
         .forEach(publicKey -> mixHash(keyAgreement.serializePublicKey(publicKey)));
@@ -545,14 +580,11 @@ public class NoiseHandshake {
       throw new IllegalArgumentException("Handshake is not currently expecting to send a message");
     }
 
-    return getOutboundMessageLength(handshakePattern, currentMessagePattern, keyAgreement.getPublicKeyLength(), payloadLength);
+    return getOutboundMessageLength(currentMessagePattern, payloadLength);
   }
 
   // Visible for testing
-  static int getOutboundMessageLength(final HandshakePattern handshakePattern,
-                                      final int message,
-                                      final int publicKeyLength,
-                                      final int payloadLength) {
+  int getOutboundMessageLength(final int message, final int payloadLength) {
 
     if (message < 0 || message >= handshakePattern.getHandshakeMessagePatterns().length) {
       throw new IndexOutOfBoundsException(
@@ -572,6 +604,7 @@ public class NoiseHandshake {
             || token == HandshakePattern.Token.SE
             || token == HandshakePattern.Token.SS
             || token == HandshakePattern.Token.PSK
+            || token == HandshakePattern.Token.EKEM1
             || (token == HandshakePattern.Token.E && isPreSharedKeyHandshake));
 
     int messageLength = 0;
@@ -579,20 +612,42 @@ public class NoiseHandshake {
     for (final HandshakePattern.Token token : handshakePattern.getHandshakeMessagePatterns()[message].tokens()) {
       switch (token) {
         case E -> {
-          messageLength += publicKeyLength;
+          messageLength += keyAgreement.getPublicKeyLength();
 
           if (isPreSharedKeyHandshake) {
             hasKey = true;
           }
         }
+
         case S -> {
-          messageLength += publicKeyLength;
+          messageLength += keyAgreement.getPublicKeyLength();
 
           if (hasKey) {
             // If we have a key, then the static key is encrypted and has a 16-byte AEAD tag
             messageLength += 16;
           }
         }
+
+        case E1 -> {
+          messageLength += keyEncapsulationMechanism.getPublicKeyLength();
+
+          if (hasKey) {
+            // If we have a key, then the key encapsulation public key is encrypted and has a 16-byte AEAD tag
+            messageLength += 16;
+          }
+        }
+
+        case EKEM1 -> {
+          messageLength += keyEncapsulationMechanism.getEncapsulationLength();
+
+          if (hasKey) {
+            // If we have a key, then the key encapsulation is encrypted and has a 16-byte AEAD tag
+            messageLength += 16;
+          }
+
+          hasKey = true;
+        }
+
         case EE, ES, SE, SS, PSK -> hasKey = true;
       }
     }
@@ -624,15 +679,11 @@ public class NoiseHandshake {
       throw new IllegalStateException("Handshake is not currently expecting to read a message");
     }
 
-    return getPayloadLength(handshakePattern, currentMessagePattern, keyAgreement.getPublicKeyLength(), handshakeMessageLength);
+    return getPayloadLength(currentMessagePattern, handshakeMessageLength);
   }
 
-  static int getPayloadLength(final HandshakePattern handshakePattern,
-                              final int message,
-                              final int publicKeyLength,
-                              final int ciphertextLength) {
-
-    final int emptyPayloadMessageLength = getOutboundMessageLength(handshakePattern, message, publicKeyLength, 0);
+  int getPayloadLength(final int message, final int ciphertextLength) {
+    final int emptyPayloadMessageLength = getOutboundMessageLength(message, 0);
 
     if (ciphertextLength < emptyPayloadMessageLength) {
       throw new IllegalArgumentException("Ciphertext is shorter than minimum expected message length");
@@ -760,6 +811,44 @@ public class NoiseHandshake {
             // This should never happen for buffers we control
             throw new AssertionError("Short buffer for static key component", e);
           }
+        }
+
+        case E1 -> {
+          localKeyEncapsulationKeyPair = keyEncapsulationMechanism.generateKeyPair();
+
+          try {
+            offset += encryptAndHash(
+                keyEncapsulationMechanism.serializePublicKey(localKeyEncapsulationKeyPair.getPublic()),
+                0, keyEncapsulationMechanism.getPublicKeyLength(), message, offset);
+          } catch (final ShortBufferException e) {
+            // This should never happen for buffers we control
+            throw new AssertionError("Short buffer for key encapsulation public key component", e);
+          }
+        }
+
+        case EKEM1 -> {
+          if (localKeyEncapsulationKeyPair != null) {
+            throw new IllegalStateException("Local key encapsulation key pair already set");
+          }
+
+          if (remoteKeyEncapsulationPublicKey == null) {
+            throw new IllegalStateException("No remote key encapsulation public key available");
+          }
+
+          localKeyEncapsulationKeyPair = keyEncapsulationMechanism.generateKeyPair();
+
+          final KEM.Encapsulated encapsulated =
+              keyEncapsulationMechanism.encapsulate(remoteKeyEncapsulationPublicKey);
+
+          try {
+            offset += encryptAndHash(encapsulated.encapsulation(),
+                0, keyEncapsulationMechanism.getEncapsulationLength(), message, offset);
+          } catch (final ShortBufferException e) {
+            // This should never happen for buffers we control
+            throw new AssertionError("Short buffer for key encapsulation component", e);
+          }
+
+          mixKey(keyEncapsulationMechanism.serializeSharedSecret(encapsulated.key()));
         }
 
         case EE, ES, SE, SS, PSK -> handleMixKeyToken(token);
@@ -896,6 +985,43 @@ public class NoiseHandshake {
           }
         }
 
+        case E1 -> {
+          localKeyEncapsulationKeyPair = keyEncapsulationMechanism.generateKeyPair();
+
+          try {
+            bytesWritten += encryptAndHash(
+                ByteBuffer.wrap(keyEncapsulationMechanism.serializePublicKey(localKeyEncapsulationKeyPair.getPublic())),
+                message);
+          } catch (final ShortBufferException e) {
+            // This should never happen for buffers we control
+            throw new AssertionError("Short buffer for key encapsulation public key component", e);
+          }
+        }
+
+        case EKEM1 -> {
+          if (localKeyEncapsulationKeyPair != null) {
+            throw new IllegalStateException("Local key encapsulation key pair already set");
+          }
+
+          if (remoteKeyEncapsulationPublicKey == null) {
+            throw new IllegalStateException("No remote key encapsulation public key available");
+          }
+
+          localKeyEncapsulationKeyPair = keyEncapsulationMechanism.generateKeyPair();
+
+          final KEM.Encapsulated encapsulated =
+              keyEncapsulationMechanism.encapsulate(remoteKeyEncapsulationPublicKey);
+
+          try {
+            bytesWritten += encryptAndHash(ByteBuffer.wrap(encapsulated.encapsulation()), message);
+          } catch (final ShortBufferException e) {
+            // This should never happen for buffers we control
+            throw new AssertionError("Short buffer for key encapsulation component", e);
+          }
+
+          mixKey(keyEncapsulationMechanism.serializeSharedSecret(encapsulated.key()));
+        }
+
         case EE, ES, SE, SS, PSK -> handleMixKeyToken(token);
       }
     }
@@ -1020,6 +1146,40 @@ public class NoiseHandshake {
           offset += staticKeyCiphertextLength;
         }
 
+        case E1 -> {
+          if (remoteKeyEncapsulationPublicKey != null) {
+            throw new IllegalStateException("Remote key encapsulation public key already set");
+          }
+
+          final int keyEncapsulationPublicKeyCiphertextLength =
+              keyEncapsulationMechanism.getPublicKeyLength() + (cipherState.hasKey() ? 16 : 0);
+
+          final byte[] keyEncapsulationPublicKeyBytes = new byte[keyEncapsulationMechanism.getPublicKeyLength()];
+
+          decryptAndHash(message, offset, keyEncapsulationPublicKeyCiphertextLength, keyEncapsulationPublicKeyBytes, 0);
+
+          remoteKeyEncapsulationPublicKey =
+              keyEncapsulationMechanism.deserializePublicKey(keyEncapsulationPublicKeyBytes);
+
+          offset += keyEncapsulationPublicKeyCiphertextLength;
+        }
+
+        case EKEM1 -> {
+          if (localKeyEncapsulationKeyPair == null) {
+            throw new IllegalStateException("Local key encapsulation key not set");
+          }
+
+          final int keyEncapsulationLength =
+              keyEncapsulationMechanism.getEncapsulationLength() + (cipherState.hasKey() ? 16 : 0);
+
+          final byte[] keyEncapsulationBytes = new byte[keyEncapsulationMechanism.getEncapsulationLength()];
+          decryptAndHash(message, offset, keyEncapsulationLength, keyEncapsulationBytes, 0);
+
+          mixKey(keyEncapsulationMechanism.decapsulate(localKeyEncapsulationKeyPair.getPrivate(), keyEncapsulationBytes));
+
+          offset += keyEncapsulationLength;
+        }
+
         case EE, ES, SE, SS, PSK -> handleMixKeyToken(token);
       }
     }
@@ -1130,6 +1290,47 @@ public class NoiseHandshake {
           message.position(message.position() + staticKeyCiphertextLength);
 
           remoteStaticPublicKey = keyAgreement.deserializePublicKey(staticKeyBytes);
+        }
+
+        case E1 -> {
+          if (remoteKeyEncapsulationPublicKey != null) {
+            throw new IllegalStateException("Remote key encapsulation public key already set");
+          }
+
+          final int keyEncapsulationPublicKeyCiphertextLength =
+              keyEncapsulationMechanism.getPublicKeyLength() + (cipherState.hasKey() ? 16 : 0);
+
+          final byte[] keyEncapsulationPublicKeyBytes = new byte[keyEncapsulationMechanism.getPublicKeyLength()];
+
+          final ByteBuffer keyEncapsulationPublicKeyCiphertextSlice =
+              message.slice(message.position(), keyEncapsulationPublicKeyCiphertextLength);
+
+          decryptAndHash(keyEncapsulationPublicKeyCiphertextSlice, ByteBuffer.wrap(keyEncapsulationPublicKeyBytes));
+
+          // Operating on a slice doesn't advance the main buffer's position; do so manually instead
+          message.position(message.position() + keyEncapsulationPublicKeyCiphertextLength);
+
+          remoteKeyEncapsulationPublicKey =
+              keyEncapsulationMechanism.deserializePublicKey(keyEncapsulationPublicKeyBytes);
+        }
+
+        case EKEM1 -> {
+          if (localKeyEncapsulationKeyPair == null) {
+            throw new IllegalStateException("Local key encapsulation key not set");
+          }
+
+          final int keyEncapsulationLength =
+              keyEncapsulationMechanism.getEncapsulationLength() + (cipherState.hasKey() ? 16 : 0);
+
+          final byte[] keyEncapsulationBytes = new byte[keyEncapsulationMechanism.getEncapsulationLength()];
+
+          final ByteBuffer keyEncapsulationCiphertextSlice = message.slice(message.position(), keyEncapsulationLength);
+          decryptAndHash(keyEncapsulationCiphertextSlice, ByteBuffer.wrap(keyEncapsulationBytes));
+
+          // Operating on a slice doesn't advance the main buffer's position; do so manually instead
+          message.position(message.position() + keyEncapsulationLength);
+
+          mixKey(keyEncapsulationMechanism.decapsulate(localKeyEncapsulationKeyPair.getPrivate(), keyEncapsulationBytes));
         }
 
         case EE, ES, SE, SS, PSK -> handleMixKeyToken(token);
@@ -1331,16 +1532,20 @@ public class NoiseHandshake {
 
     hasFallenBack = true;
 
+    // TODO Add support for fallbacks with HFS patterns
     return new NoiseHandshake(role,
         fallbackPattern,
         keyAgreement,
         cipherState.getCipher(),
         noiseHash,
+        null,
         prologue,
         fallbackLocalStaticKeyPair,
         localEphemeralKeyPair,
+        null,
         fallbackRemoteStaticPublicKey,
         fallbackRemoteEphemeralPublicKey,
+        null,
         preSharedKeys);
   }
 
