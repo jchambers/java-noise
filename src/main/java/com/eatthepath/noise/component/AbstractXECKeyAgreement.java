@@ -42,57 +42,22 @@ abstract class AbstractXECKeyAgreement implements NoiseKeyAgreement {
 
   @Override
   public byte[] serializePublicKey(final PublicKey publicKey) {
-    // This is a little hacky, but the structure for an X.509 public key defines the order in which its elements appear.
-    // The first part of the key, which defines the algorithm and its parameters, is always the same for keys of the
-    // same type, and the last N bytes are the literal key material.
-    final byte[] serializedPublicKey = new byte[getPublicKeyLength()];
-    System.arraycopy(publicKey.getEncoded(), getX509Prefix().length, serializedPublicKey, 0, getPublicKeyLength());
-
-    return serializedPublicKey;
+    return XECUtil.serializePublicKey(publicKey, getPublicKeyLength(), getX509Prefix());
   }
 
   @Override
   public PublicKey deserializePublicKey(final byte[] publicKeyBytes) {
-    final int publicKeyLength = getPublicKeyLength();
-
-    if (publicKeyBytes.length != publicKeyLength) {
-      throw new IllegalArgumentException("Unexpected serialized public key length");
-    }
-
-    final byte[] x509Prefix = getX509Prefix();
-    final byte[] x509Bytes = new byte[publicKeyLength + x509Prefix.length];
-    System.arraycopy(x509Prefix, 0, x509Bytes, 0, x509Prefix.length);
-    System.arraycopy(publicKeyBytes, 0, x509Bytes, x509Prefix.length, publicKeyLength);
-
-    try {
-      return keyFactory.generatePublic(new X509EncodedKeySpec(x509Bytes, keyFactory.getAlgorithm()));
-    } catch (final InvalidKeySpecException e) {
-      throw new IllegalArgumentException("Invalid key", e);
-    }
+    return XECUtil.deserializePublicKey(publicKeyBytes, getPublicKeyLength(), getX509Prefix(), keyFactory);
   }
 
   @Override
   public void checkPublicKey(final PublicKey publicKey) throws InvalidKeyException {
-    checkKey(publicKey);
+    XECUtil.checkKey(publicKey, keyAgreement.getAlgorithm());
   }
 
   @Override
   public void checkKeyPair(final KeyPair keyPair) throws InvalidKeyException {
-    checkKey(keyPair.getPublic());
-    checkKey(keyPair.getPrivate());
-  }
-
-  private void checkKey(final Key key) throws InvalidKeyException {
-    if (key instanceof XECKey xecKey) {
-      if (xecKey.getParams() instanceof NamedParameterSpec namedParameterSpec) {
-        if (!keyAgreement.getAlgorithm().equals(namedParameterSpec.getName())) {
-          throw new InvalidKeyException("Unexpected key algorithm: " + namedParameterSpec.getName());
-        }
-      } else {
-        throw new InvalidKeyException("Unexpected key parameter type: " + xecKey.getParams().getClass());
-      }
-    } else {
-      throw new InvalidKeyException("Unexpected key type: " + key.getClass());
-    }
+    XECUtil.checkKey(keyPair.getPublic(), keyAgreement.getAlgorithm());
+    XECUtil.checkKey(keyPair.getPrivate(), keyAgreement.getAlgorithm());
   }
 }
